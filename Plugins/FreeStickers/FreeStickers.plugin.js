@@ -1,8 +1,10 @@
 /**
  * @name FreeStickers
- * @version 2.0.0
+ * @version 2.0.1
  * @author bottom_text | Z-Team 
- * @description Makes available to send not animated stickers and emojies everywhere like with nitro.
+ * @description Makes available to send stickers (not animated) and any emojis everywhere like with nitro.
+ * @source https://github.com/bottomtext228/BetterDiscord-Plugins/tree/main/Plugins/FreeStickers
+ * @updateUrl https://raw.githubusercontent.com/bottomtext228/BetterDiscord-Plugins/main/Plugins/FreeStickers/FreeStickers.plugin.js
 */
 
 
@@ -11,13 +13,13 @@ module.exports = class FreeStickers {
         return 'FreeStickers'
     }
     getVersion() {
-        return '2.0.0'
+        return '2.0.1'
     }
     getAuthor() {
         return 'bottom_text | Z-Team';
     }
     getDescription() {
-        return 'Makes available to send not animated stickers and emojies everywhere like with nitro.'
+        return 'Makes available to send stickers (not animated) and any emojis everywhere like with nitro.'
     }
     start() {
         console.log(`${this.getName()}: started!`);
@@ -32,6 +34,9 @@ module.exports = class FreeStickers {
             return true;
         });
 
+        BdApi.Patcher.after(this.getName(), this.permissionsWebpack, 'canUseAnimatedEmojis', (_, args, ret) => {
+            return true;
+        });
 
         /*
         BdApi.Patcher.after(this.emojiWebpack, 'getEmojiUnavailableReason', (_, args, ret) => {  
@@ -50,11 +55,11 @@ module.exports = class FreeStickers {
             }
 
             /* emojies */
-            const regExp = /<:\w+:(\d+)>/g; // guild emoji 
+            const regExp = /<a?:\w+:(\d+)>/g; // guild emoji 
             let match;
             while (match = regExp.exec(message.content)) {
                 const emojiId = match[1];
-                const customEmoji = this.getCustomEmojiById(emojiId);             
+                const customEmoji = this.getCustomEmojiById(emojiId);           
                 if (customEmoji && !this.isCustomEmojiAvailable(customEmoji, message.channelId)) {
                     message.content = message.content.replace(match[0], this.getCustomEmojiById(emojiId).url); // replace emoji code with url
                 }
@@ -78,7 +83,7 @@ module.exports = class FreeStickers {
              channel: this.getChannel(channelId),
              intention: 3 // magic number
          });
-         // return value == 2 - emoji blocker | null - avalaible. (!) don't work with canUseStickersEverywhere() hook (!)
+         // return value == 2 - emoji blocked | null - avalaible. (!) don't work with canUseStickersEverywhere() hook (!)
      } */
     getChannel(channelId) {
         return this.channelStoreWebpack.getChannel(channelId);
