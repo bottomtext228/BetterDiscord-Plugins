@@ -1,6 +1,6 @@
 /**
  * @name FreeStickers
- * @version 2.0.2
+ * @version 2.0.3
  * @author bottom_text | Z-Team 
  * @description Makes available to send stickers (not animated) and any emojis everywhere like with nitro.
  * @source https://github.com/bottomtext228/BetterDiscord-Plugins/tree/main/Plugins/FreeStickers
@@ -13,7 +13,7 @@ module.exports = class FreeStickers {
         return 'FreeStickers'
     }
     getVersion() {
-        return '2.0.2'
+        return '2.0.3'
     }
     getAuthor() {
         return 'bottom_text | Z-Team';
@@ -97,12 +97,12 @@ module.exports = class FreeStickers {
         return this.customEmojieUtilities.getCustomEmojiById(emojiId);
     }
     findWebpacks() {
-        this.permissionsWebpack = ZeresPluginLibrary.WebpackModules.getByProps('canUseStickersEverywhere');
-        this.enqueWebpack = ZeresPluginLibrary.WebpackModules.getByProps('enqueue');
-        //this.emojiWebpack = ZeresPluginLibrary.WebpackModules.getByProps('getEmojiUnavailableReason');
-        this.channelStoreWebpack = ZeresPluginLibrary.WebpackModules.getByProps('getChannel');
-        this.customEmojieUtilities = ZeresPluginLibrary.WebpackModules.getByProps('getCustomEmojiById');
-        this.stickerWebpack = ZeresPluginLibrary.WebpackModules.getByProps('getStickerById');
+        this.permissionsWebpack = BdApi.findModuleByProps('canUseStickersEverywhere');
+        this.enqueWebpack = BdApi.findModuleByProps('enqueue');
+        //this.emojiWebpack = BdApi.findModuleByProps('getEmojiUnavailableReason');
+        this.channelStoreWebpack = BdApi.findModuleByProps('getChannel');
+        this.customEmojieUtilities = BdApi.findModuleByProps('getCustomEmojiById');
+        this.stickerWebpack = BdApi.findModuleByProps('getStickerById');
     }
     stop() {
         console.log(`${this.getName()}: stopped!`);
