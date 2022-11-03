@@ -1,6 +1,6 @@
 /**
  * @name InputSwitcher
- * @version 1.0.3
+ * @version 1.0.4
  * @author bottom_text | Z-Team 
  * @description Switches the keyboard layout of the message
  * @source https://github.com/bottomtext228/BetterDiscord-Plugins/tree/main/Plugins/InputSwitcher
@@ -67,8 +67,7 @@ module.exports = (_ => {
                     return;
                 }
               
-                this.currentUser = this.getCurrentUser();
-                        
+                                
             }
 
             onStop() {
@@ -85,7 +84,7 @@ module.exports = (_ => {
                         label: 'Switch',
                         id: `SwitchPopUp`,
                         action: _ => {
-                            if (props.message.author.id == this.currentUser.id) {
+                            if (props.message.author.id == this.getCurrentUser().id) {
                                 this.editMessage(props.channel.id, props.message.id, this.swapLanguage(props.message.content));
                             }
                             else {
@@ -118,20 +117,15 @@ module.exports = (_ => {
                                     {{content}}                                
                                     <span>   
                                 <div>`;
-    
-    
+     
     
                                 elements.push(ZeresPluginLibrary.DOMTools.createElement(ZeresPluginLibrary.Utilities.formatString(popoutHTML,
-                                    {content: this.swapLanguage(props.message.content), username: props.message.author.username, discriminator: "#" + props.message.author.discriminator, avatar_url: props.message.author.getAvatarURL() }
+                                    // delete stickers and pings from the message because they looks like shit in raw message
+                                    {content: this.swapLanguage(props.message.content.replace(/<:\w+:\d+>|<@&{0,1}\d+>/g, '')), username: props.message.author.username, discriminator: "#" + props.message.author.discriminator, avatar_url: props.message.author.getAvatarURL() }
                                 )));
-                                    
-    
-                               
+
                                 BDFDB.ModalUtils.open(this, {
-                                    confirmText: 'OK',
-                                    size: ZeresPluginLibrary.Modals.ModalSizes.SMALL,
-                                    children: [ZeresPluginLibrary.ReactTools.createWrappedElement(elements)],
-                                    red: false
+                                    children: [ZeresPluginLibrary.ReactTools.createWrappedElement(elements)],                   
                                 });
                             }
                         }
