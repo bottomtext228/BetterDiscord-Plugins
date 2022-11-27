@@ -15,7 +15,7 @@ module.exports = class PigEmoji {
     }
     start() {
         console.log(`${this.name}: started!`);
-        
+
         this.permissionsWebpack = BdApi.findModuleByProps('areChannelsLocked');
         this.userStoreWebpack = BdApi.findModuleByProps('getCurrentUser');
         this.expressionPickerWebpack = BdApi.findModuleByProps('RO'); 
@@ -73,10 +73,10 @@ module.exports = class PigEmoji {
     }
 
     shouldDrawEmojiButton(children, props) {
-        const channel = props.channel
         if (props.type?.analyticsName == "profile_bio_input") {
             return false;
         }
+        const channel = props.channel;
         if (channel.type == 1 || channel.type == 3) { // DM | Group chat
             return true;
         }
@@ -156,6 +156,3 @@ module.exports = class PigEmoji {
 
 
 };
-
-
-
