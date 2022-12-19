@@ -1,6 +1,6 @@
 /**
  * @name PigEmoji
- * @version 2.0.0
+ * @version 2.0.1
  * @description Replace emoji button with the pig emoji.
  * @author bottom_text | Z-Team 
 */
@@ -44,7 +44,8 @@ module.exports = class PigEmoji {
             }
             // create our button and replace the original
             const pig2 = this.createEmojiButton(buttonsContainter.props);
-            ret.props.children[ret.props.children.length - 1] = pig2;
+            // find the emoji button and replace it
+            ret.props.children[ret.props.children.indexOf(ret.props.children.find(e => e.key == 'emoji'))] = pig2; 
             return ret;
         })
         // forcibly rerender elements to see changes instantly
