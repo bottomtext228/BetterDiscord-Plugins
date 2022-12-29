@@ -41,13 +41,6 @@ module.exports = class OCS {
 
 		/* 90% of the code is old and pretty bad (settings menu). I won't rewrite it. :trolling: */
 
-		/* TODO: 
-			* протестировать всё
-			* почистить код
-		
-		*/
-
-
 		BdApi.Patcher.before(
 			this.name,
 			this.DispatchWebPack,
@@ -149,15 +142,11 @@ module.exports = class OCS {
 			);
 
 			input_id.addEventListener('input', () => {
-
 				const userIdToFind = document.getElementById('input_id').value.trim();
 				if (userIdToFind == '')
 					return;
 				const user = this.getUser(userIdToFind)
 				this.renderUserToAdd(user);
-
-
-
 			});
 			const membersTable = this.parseHTML(`<table id="findObjects"></table>`);
 			input_name.addEventListener('input', () => {
