@@ -1,6 +1,6 @@
 /**
  * @name InputSwitcher
- * @version 1.0.4
+ * @version 1.1.0
  * @author bottom_text | Z-Team 
  * @description Switches the keyboard layout of the message
  * @source https://github.com/bottomtext228/BetterDiscord-Plugins/tree/main/Plugins/InputSwitcher
@@ -54,32 +54,32 @@ module.exports = (_ => {
     } : (([Plugin, BDFDB]) => {
 
         return class InputSwitcher extends Plugin {
- 
+
             onStart() {
-                const libraries = [
-                    {
-                        name: 'ZeresPluginLibrary',
-                        url: 'https://raw.githubusercontent.com/rauenzi/BDPluginLibrary/master/release/0PluginLibrary.plugin.js',
-                        filename: '0PluginLibrary.plugin.js'
-                    },
-                ];
-                if (!this.checkLibraries(libraries)) {
+                this.UserStore = BdApi.findModuleByProps('getCurrentUser');
+                this.MessageActions = BdApi.findModuleByProps('editMessage');
+            }
+            // right click on text input
+            onTextAreaContextMenu(e) {
+                if (!e.instance.props.editor) {
                     return;
                 }
-              
-                                
+                const textInputValue = this.getTextInputValue(e.instance.props.editor.children[0].children);
+                if (textInputValue) {
+                    e.returnvalue.props.children.push(BDFDB.ContextMenuUtils.createItem(BDFDB.LibraryComponents.MenuItems.MenuItem, {
+                        label: 'Switch',
+                        id: `SwitchPopUp`,
+                        action: _ => {
+                            this.setTextInputValue(e.instance.props.editor, this.swapLanguage(textInputValue));
+                        }
+                    }));
+                }
             }
-
-            onStop() {
-          
-            }
-
+            // right click on message
             onMessageContextMenu(e) {
                 const props = e.instance.props;
                 if (props.message && props.channel) {
-
-                    let [children, index] = BDFDB.ContextMenuUtils.findItem(e.returnvalue, { id: ["pin", "unpin"] });
-                    if (index == -1) [children, index] = BDFDB.ContextMenuUtils.findItem(e.returnvalue, { id: ["edit", "add-reaction", "quote"] });
+                    let [children, index] = BDFDB.ContextMenuUtils.findItem(e.returnvalue, { id: ["edit", "add-reaction", "quote"] });
                     children.splice(children.length - 1, 0, BDFDB.ContextMenuUtils.createItem(BDFDB.LibraryComponents.MenuItems.MenuItem, {
                         label: 'Switch',
                         id: `SwitchPopUp`,
@@ -88,45 +88,7 @@ module.exports = (_ => {
                                 this.editMessage(props.channel.id, props.message.id, this.swapLanguage(props.message.content));
                             }
                             else {
-                                const elements = [];
-                                const popoutHTML =
-                                `<div>
-                                    <div class="item-1BCeuB role-member">
-                                        <div class="itemCheckbox-2G8-Td">
-                                            <div class="avatar-1XUb0A wrapper-1VLyxH" role="img" aria-hidden="false" style="width: 32px; height: 32px;">
-                                                <svg width="40" height="32" viewBox="0 0 40 32" class="mask-1FEkla svg-2azL_l" aria-hidden="true">
-                                                    <foreignObject x="0" y="0" width="32" height="32" mask="url(#svg-mask-avatar-default)">
-                                                        <div class="avatarStack-3vfSFa">
-                                                            <img src="{{avatar_url}}" alt=" " class="avatar-b5OQ1N" aria-hidden="true">
-                                                        </div>
-                                                    </foreignObject>
-                                                </svg>
-                                            </div>
-                                        </div>
-                                        <div class="itemLabel-27pirQ">
-                                            <span class="username">
-                                                {{username}}
-                                            </span>
-                                            <span class="discriminator-2jnrqC">
-                                                {{discriminator}}
-                                            </span>                   
-                                        </div>                                                                       
-                                    </div>
-                                    <br> 
-                                    <span style="color:#dddddd">                                   
-                                    {{content}}                                
-                                    <span>   
-                                <div>`;
-     
-    
-                                elements.push(ZeresPluginLibrary.DOMTools.createElement(ZeresPluginLibrary.Utilities.formatString(popoutHTML,
-                                    // delete stickers and pings from the message because they looks like shit in raw message
-                                    {content: this.swapLanguage(props.message.content.replace(/<:\w+:\d+>|<@&{0,1}\d+>/g, '')), username: props.message.author.username, discriminator: "#" + props.message.author.discriminator, avatar_url: props.message.author.getAvatarURL() }
-                                )));
-
-                                BDFDB.ModalUtils.open(this, {
-                                    children: [ZeresPluginLibrary.ReactTools.createWrappedElement(elements)],                   
-                                });
+                                this.createMessagePopUp(props.message);
                             }
                         }
                     }));
@@ -134,18 +96,85 @@ module.exports = (_ => {
                 }
             }
 
+            getTextInputValue(childrens) {
+                let text = ''
+                childrens.forEach(e => {
+                    if (e.text && e.text != '') {
+                        text += e.text;
+                    }
+                    else {
+                        if (e.type == 'emoji') {
+                            text += e.emoji.surrogate
+                        }
+                        if (e.type == 'customEmoji') {
+                            text += `<${e.emoji.name}${e.emoji.emojiId}>`;
+                        }
+                    }
+                });
+                return text;
+            }
+
+            setTextInputValue(editor, replacement) {
+                if (!editor) return;
+                editor.history.stack.splice(editor.history.index + 1, 0, {
+                    type: "other",
+                    mergeable: false,
+                    createdAt: new Date().getTime(),
+                    value: BDFDB.SlateUtils.toRichValue(replacement),
+                    selection: editor.history.stack[editor.history.index].selection
+                });
+                editor.redo();
+            }
+
             editMessage(channelId, messageId, content) {
-                ZeresPluginLibrary.DiscordModules.MessageActions.editMessage(channelId, messageId, { content: content });
+                this.MessageActions.editMessage(channelId, messageId, { content: content });
             }
+
             getCurrentUser() {
-                return ZeresPluginLibrary.DiscordModules.UserStore.getCurrentUser();
+                return this.UserStore.getCurrentUser();
             }
+
+            createMessagePopUp(message) {
+                const popoutHTML =
+                    `<div>
+                <div class="item-1BCeuB role-member">
+                    <div class="itemCheckbox-2G8-Td">
+                        <div class="avatar-1XUb0A wrapper-1VLyxH" role="img" aria-hidden="false" style="width: 32px; height: 32px;">
+                            <svg width="40" height="32" viewBox="0 0 40 32" class="mask-1FEkla svg-2azL_l" aria-hidden="true">
+                                <foreignObject x="0" y="0" width="32" height="32" mask="url(#svg-mask-avatar-default)">
+                                    <div class="avatarStack-3vfSFa">
+                                        <img src="${message.author.getAvatarURL()}" alt=" " class="avatar-b5OQ1N" aria-hidden="true">
+                                    </div>
+                                </foreignObject>
+                            </svg>
+                        </div>
+                    </div>
+                    <div class="itemLabel-27pirQ">
+                        <span class="username">
+                            ${message.author.username}
+                        </span>
+                        <span class="discriminator-2jnrqC">
+                            #${message.author.discriminator}
+                        </span>                   
+                    </div>                                                                       
+                </div>
+                <br> 
+                <span style="color:#dddddd">                                   
+                ${this.swapLanguage(message.content.replace(/<:\w+:\d+>|<@&{0,1}\d+>/g, ''))}                             
+                <span>   
+            <div>`;
+
+                BDFDB.ModalUtils.open(this, {
+                    children: [BDFDB.ReactUtils.elementToReact(BDFDB.DOMUtils.create(popoutHTML))],
+                });
+            }
+
             swapLanguage(message) {
                 var swappedMessage = ''
                 var words = message.split(' ');
+                const regExp = /<:\w+:\d+>|https{0,1}:\/\/[^ ]*(?!\.)[^. ]+|<@&{0,1}\d+>|@here|@everyone/g; // guild emoji | URL | user/role mention | here/everyone
                 for (let wordsIterator in words) {
                     const word = words[wordsIterator];
-                    const regExp = /<:\w+:\d+>|https{0,1}:\/\/[^ ]*(?!\.)[^. ]+|<@&{0,1}\d+>|@here|@everyone/g; // guild emoji | URL | user/role mention | here/everyone
                     const dump = word.match(regExp);
                     var result, indexes = [];
                     while ((result = regExp.exec(word))) {
@@ -154,7 +183,6 @@ module.exports = (_ => {
                     var text = word;
                     for (let dumpIterator in dump) {
                         text = text.replace(dump[dumpIterator], ' '.repeat(dump[dumpIterator].length)); // убираем их, чтобы достать нужное
-
                     }
                     var wordsToChange = text.match(/[^ ]+/g); // достаём нужные слова из строки с пробелами
 
@@ -191,38 +219,10 @@ module.exports = (_ => {
 
             }
 
-            checkLibraries(libraries) {
-                const div = BdApi.React.createElement('div', {});
-                div.props.children = [];
-                const createMissingLibraryText = (libraryName, libraryUrl) => {
-                    return BdApi.React.createElement('div', {}, BdApi.React.createElement('a', {
-                        href: libraryUrl,
-                        target: '_blank'
-                    }, libraryName),
-                        BdApi.React.createElement('span', { style: { color: 'white' } }, ' was missing'));
-                }
-                var hasAllLibs = true;
-                for (const library of libraries) {
+            onStop() {
 
-                    if (!global[library.name]) {
-                        hasAllLibs = false;
-                        div.props.children.push(createMissingLibraryText(library.name, library.url));
-                        fetch(library.url).then(function (response) {
-                            return response.text();
-                        }).then(function (file) {
-                            require('fs').writeFileSync(require('path').join(BdApi.Plugins.folder, library.filename), file);
-                        });
-                    }
-                }
-                if (!hasAllLibs) {
-                    div.props.children.push(BdApi.React.createElement('span', { style: { color: 'white' } }, 'Please, reload plugin'))
-                    BdApi.alert('Missing libraries were downloaded', div);
-                    BdApi.Plugins.disable(this.getName());
-                    return false;
-                }
-                return true;
             }
-            
+
             letters = {
                 'a': 'ф',
                 'b': 'и',
@@ -306,5 +306,4 @@ module.exports = (_ => {
         };
     })(window.BDFDB_Global.PluginUtils.buildPlugin(changeLog));
 })();
-
 
