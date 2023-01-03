@@ -1,8 +1,10 @@
 /**
  * @name PigEmoji
- * @version 2.0.1
- * @description Replace emoji button with the pig emoji.
+ * @version 2.1.0
  * @author bottom_text | Z-Team 
+ * @description Replaces emoji button with any emoji.
+ * @source https://github.com/bottomtext228/BetterDiscord-Plugins/tree/main/Plugins/PigEmoji
+ * @updateUrl https://raw.githubusercontent.com/bottomtext228/BetterDiscord-Plugins/main/Plugins/PigEmoji/PigEmoji.plugin.js
 */
 
 
@@ -16,14 +18,20 @@ module.exports = class PigEmoji {
     start() {
         console.log(`${this.name}: started!`);
 
-        this.permissionsWebpack = BdApi.findModuleByProps('areChannelsLocked');
-        this.userStoreWebpack = BdApi.findModuleByProps('getCurrentUser');
-        this.expressionPickerWebpack = BdApi.findModuleByProps('RO'); 
-    
-        this.classConstansts = BdApi.findModuleByProps('profileBioInput'); // both some html classes/discord constants
-        this.emojiButtonClassConstansts = BdApi.findModuleByProps('X1'); // .X1. EMOJI | GIF | STICKER ( 'emoji' | 'gif' | 'sticker')
+        this.findWebpacks();
 
-   
+        /* TODO:
+            * future: make ability to set custom svg images
+        */
+      
+        this.settings = BdApi.loadData(this.name, 'settings');
+        if (!this.settings) { // load defaults
+            this.settings = {
+                emoji: 'pig2'
+            };
+            BdApi.saveData(this.name, 'settings', this.settings);
+        };
+
         this.patchButton();
     }
 
@@ -32,46 +40,64 @@ module.exports = class PigEmoji {
         const button = await this.getEmojiButton();
 
         const buttonReactInstance = BdApi.ReactUtils.getInternalInstance(button);
+
         if (!buttonReactInstance) {
             return;
         }
+
         // https://cdn.discordapp.com/attachments/768531187110510602/1046466928128045066/image.png
         const buttonsContainter = buttonReactInstance.pendingProps.children[2];
+
+        const emojiElement = await this.createEmojiButton(buttonsContainter.props, this.settings.emoji);
+
         // patch React function to inject our button
         BdApi.Patcher.after(this.name, buttonsContainter.type, 'type', (_, [props], ret) => {
             if (!this.shouldDrawEmojiButton(ret?.props?.children, props)) {
                 return;
             }
-            // create our button and replace the original
-            const pig2 = this.createEmojiButton(buttonsContainter.props);
             // find the emoji button and replace it
-            ret.props.children[ret.props.children.indexOf(ret.props.children.find(e => e.key == 'emoji'))] = pig2; 
+            ret.props.children[ret.props.children.indexOf(ret.props.children.find(e => e.key == 'emoji'))] = emojiElement;
             return ret;
         })
         // forcibly rerender elements to see changes instantly
         this.rerenderMessageStore();
     }
 
-    rerenderMessageStore() {
-        let LayerProviderIns = BdApi.ReactUtils.getOwnerInstance(document.querySelector(".chatContent-3KubbW"));
-        let LayerProviderPrototype = LayerProviderIns.__proto__
-        if (LayerProviderIns && LayerProviderPrototype) {
-            let unpatch = BdApi.Patcher.after(this.name, LayerProviderPrototype, 'render', (_, args, ret) => {
-                ret.props.children = typeof ret.props.children.children == "function" ? (_ => { return null; }) : [];
-                this.forceUpdate(LayerProviderIns);
-                unpatch();
-            });
-            this.forceUpdate(LayerProviderIns);
-        }
+    getSettingsPanel() {
+        // simple menu 
+        const html = this.parseHTML(
+            `<div>
+           </div>`
+        )
+
+        const input_id = this.parseHTML(
+            `<div class="container-2oNtJn medium-2NClDM">
+                <div class="inner-2pOSmK">
+                    <input type="text" class="input-2m5SfJ" name="message" placeholder="Enter emoji" id="input_id" value="${this.settings.emoji}"/>
+                </div>
+            </div>`
+        );
+
+        const padding = this.parseHTML(`<pre id="padding">&nbsp</pre>`); // xd
+
+        const confirm_button = this.createButton('Save', () => {
+            const value = document.getElementById('input_id').value.trim();
+            if (this.getEmojiByName(value)) { // if emoji exists
+                this.settings.emoji = value;
+                BdApi.saveData(this.name, 'settings', this.settings);
+                this.patchButton();
+                document.getElementById('padding').innerHTML = '&nbsp';
+            } else {
+                document.getElementById('padding').innerText = 'Emoji not found.';
+                document.getElementById('padding').style = 'color: #dddddd';
+            }
+        })
+        html.appendChild(input_id);
+        html.appendChild(padding);
+        html.appendChild(confirm_button);
+        return html;
     }
 
-    forceUpdate(...instances) {
-        for (let ins of instances.flat(10).filter(n => n)) {
-            if (ins.updater && typeof ins.updater.isMounted == "function" && ins.updater.isMounted(ins)) {
-                ins.forceUpdate();
-            }
-        }
-    }
 
     shouldDrawEmojiButton(children, props) {
         if (props.type?.analyticsName == "profile_bio_input") {
@@ -97,13 +123,67 @@ module.exports = class PigEmoji {
         return this.userStoreWebpack.getCurrentUser();
     }
 
-    onEmojiHover(e) {
-        e.target.querySelector('path')?.setAttribute('fill', `${e.type == 'mouseenter' ? '#F4ABBA' : 'currentColor'}`)
+    getEmojiByName(emojiName) { // unicode emoji only
+        return this.emojiUtilities.getByName(emojiName);
     }
 
-    createEmojiButton(props) {
+    onEmojiHover(e) {
+
+        const button = (e.target.firstChild || e.target);
+
+        const animate = ({ timing, draw, duration }) => {
+            let start;
+            requestAnimationFrame(function animate(time) {
+                // timeFraction changes from 0 to 1
+                if (start == undefined) { // never use performance.now() here
+                    start = time;
+                }
+                let timeFraction = (time - start) / duration;
+                if (timeFraction > 1) timeFraction = 1; 
+                // calculate current animation state
+                let progress = timing(timeFraction);
+                draw(progress); // draw it
+                if (timeFraction < 1) {
+                    requestAnimationFrame(animate);
+                }
+            });
+        }
+
+
+        animate({
+            timing(timeFraction) {
+                return timeFraction;
+            }, draw: (progress) => {
+                let grayscale;
+                let scale;
+                let endScale;
+                if (e.type == 'mouseenter') {
+                    grayscale = 1 - progress; // it's just works
+                    scale = 0.14 * progress + 1;
+                    endScale = 1.14;
+                } else {
+                    grayscale = 1 - Math.abs(progress - 1);
+                    scale = 1.14 - (0.14 * progress);
+                    endScale = 1;
+                }
+
+                if (progress == 1) {
+                    scale = endScale;
+                }
+                button.setAttribute('style', `filter: grayscale(${grayscale}); transform: scale(${scale})`);
+
+            }, duration: 75
+        });
+
+    }
+
+
+    async createEmojiButton(props, emojiName) {
+
+        const emoji = this.getEmojiByName(emojiName);
+
         return BdApi.React.createElement('div', {
-            class: `${this.emojiButtonClassConstansts.CT}`,
+            class: `${this.emojiButtonClassConstansts.CT} ${this.classConstansts.buttonContainer}`, 
             key: 'emoji',
         }, BdApi.React.createElement('button', {
             tabindex: "0",
@@ -111,31 +191,28 @@ module.exports = class PigEmoji {
             'aria-expanded': "false",
             'aria-haspopup': "dialog",
             class: "emojiButtonNormal-35P0_i emojiButton-3FRTuj emojiButton-1fMsf3 button-3BaQ4X button-f2h6uQ lookBlank-21BCro colorBrand-I6CyqQ grow-2sR_-F",
-            onClick: () => this.openExpressionPickerMenu('emoji', props.type),
-            onMouseEnter: this.onEmojiHover,
-            onMouseLeave: this.onEmojiHover
+            onClick: () => this.openExpressionPickerMenu('emoji', props.type), // () => to save 'this' context
+            onMouseEnter: (e) => this.onEmojiHover(e),
+            onMouseLeave: (e) => this.onEmojiHover(e)
         },
-            BdApi.React.createElement('svg', {
-                width: "27",
-                height: "27",
-                'aria-hidden': "true",
-                role: "img",
-                viewBox: "0 0 36 36",
-            }, [
-                BdApi.React.createElement('path', {
-                    color: "var(--interactive-normal)",
-                    fill: "currentColor",
-                    d: "M33.738 20.368c-.799-5.543-5.186-9.78-12.562-9.78-.293 0-.621.012-.964.03-1.479.058-2.961.248-4.399.56-.749.144-1.507.317-2.253.514-.775-1.051-2.342-2.163-2.736-2.163-.512 0-.038 1.871-.006 3.052-.88.349-1.685.742-2.347 1.183-3.177 2.118-3.177 3.177-6.838 3.177-1.632 0-1.588 1.658-1.588 3.705 0 2.046-.044 2.618 1.588 3.707 2.183 1.456 4.731 3.612 7.952 5.386C11.608 32.886 9.91 36 11.648 36c1.226 0 2.807-1.964 3.647-3.944 1.788.474 3.732.769 5.881.769 1.142 0 2.204-.089 3.201-.245.272 1.944-.16 3.42 1.035 3.42 1.555 0 6.998-4.994 8.218-11.29.06-.287.103-.582.142-.882.012-.09.028-.18.038-.271.021-.199.03-.404.041-.608 1.046.275 2.149.693 2.149-.175 0-.705-1.119-1.715-2.262-2.406z"
-                }),
-                BdApi.React.createElement('path', {
-                    fill: "#292F33",
-                    d: "M10.588 16.941c0 .584-.474 1.059-1.059 1.059-.584 0-1.059-.474-1.059-1.059s.474-1.059 1.059-1.059 1.059.474 1.059 1.059z"
-                })
-            ])
+            BdApi.React.createElement('img', {
+                'aria-label': emoji.surrogates,
+                src: this.getEmojiUrl(emoji.surrogates),
+                alt: emoji.surrogates,
+                style: { filter: "grayscale(1)", transform: "scale(1)" },
+                draggable: "false",
+                width: "23", // or 27
+                height: "23",
+                'data-type': "emoji",
+                'data-name': `:${emoji.uniqueName}:`
+            })
+
         ));
+
 
     }
 
+      
     getEmojiButton() {
         return new Promise((resolve, reject) => {
             const observer = new MutationObserver((mutationRecords) => {
@@ -148,12 +225,64 @@ module.exports = class PigEmoji {
             observer.observe(document.body, { childList: true, subtree: true });
         });
     }
+ 
+    getEmojiUrl(emojiSurrogate) { // example: '🐖' -> '/assets/d083412544c302d290775006877f6202.svg'
+        return this.getURLWebpack.getURL(emojiSurrogate);
+    }
 
-    stop() { 
+    parseHTML(html) {
+        var template = document.createElement('template');
+        html = html.trim(); // Never return a text node of whitespace as the result
+        template.innerHTML = html;
+        return template.content.firstChild;
+    }
+
+    createButton(label, callback, id) {
+        const ret = this.parseHTML(`<button type="button" class="button-f2h6uQ lookFilled-yCfaCM colorBrand-I6CyqQ sizeSmall-wU2dO- grow-2sR_-F" ${(id ? 'id="' + id + '"' : '')}><div class="contents-3ca1mk">${label}</div></button>`);
+        if (callback) {
+            ret.addEventListener('click', callback);
+        }
+        return ret;
+    }
+
+    rerenderMessageStore() {
+        let LayerProviderIns = BdApi.ReactUtils.getOwnerInstance(document.querySelector(".chatContent-3KubbW"));
+        let LayerProviderPrototype = LayerProviderIns.__proto__
+        if (LayerProviderIns && LayerProviderPrototype) {
+            let unpatch = BdApi.Patcher.after(this.name, LayerProviderPrototype, 'render', (_, args, ret) => {
+                ret.props.children = typeof ret.props.children.children == "function" ? (_ => { return null; }) : [];
+                this.forceUpdate(LayerProviderIns);
+                unpatch();
+            });
+            this.forceUpdate(LayerProviderIns);
+        }
+    }
+
+    forceUpdate(...instances) {
+        for (let ins of instances.flat(10).filter(n => n)) {
+            if (ins.updater && typeof ins.updater.isMounted == "function" && ins.updater.isMounted(ins)) {
+                ins.forceUpdate();
+            }
+        }
+    }
+
+    findWebpacks() {
+        this.permissionsWebpack = BdApi.findModuleByProps('areChannelsLocked');
+        this.userStoreWebpack = BdApi.findModuleByProps('getCurrentUser');
+        this.getURLWebpack = BdApi.findModuleByProps('getURL');
+        this.emojiUtilities = BdApi.findModuleByProps('getByName');
+
+        this.expressionPickerWebpack = BdApi.findModuleByProps('RO');
+
+        this.classConstansts = BdApi.findModuleByProps('profileBioInput'); // both some html classes/discord constants
+        this.emojiButtonClassConstansts = BdApi.findModuleByProps('X1'); // .X1. EMOJI | GIF | STICKER ( 'emoji' | 'gif' | 'sticker')
+
+    }
+
+    stop() {
         console.log(`${this.name}: stopped!`);
         BdApi.Patcher.unpatchAll(this.name);
         this.rerenderMessageStore();
     }
-
 
 };
