@@ -1,4 +1,10 @@
 # PigEmoji
-Replace emoji button with the pig emoji.
+Replaces emoji button with any emoji.
 
-![Image](./res/Screenshot.png)
+![Image](./res/Screenshot_1.png)
+
+
+![Image1](./res/Screenshot_2.png)
+
+
+![Image2](./res/Screenshot_3.png)
