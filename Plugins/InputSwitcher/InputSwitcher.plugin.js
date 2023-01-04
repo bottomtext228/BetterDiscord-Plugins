@@ -1,8 +1,8 @@
 /**
  * @name InputSwitcher
- * @version 1.1.0
+ * @version 1.2.0
  * @author bottom_text | Z-Team 
- * @description Switches the keyboard layout of the message
+ * @description Switches the keyboard layout(RU & EN)/case of the message.
  * @source https://github.com/bottomtext228/BetterDiscord-Plugins/tree/main/Plugins/InputSwitcher
  * @updateUrl https://raw.githubusercontent.com/bottomtext228/BetterDiscord-Plugins/main/Plugins/InputSwitcher/InputSwitcher.plugin.js
 */
@@ -56,7 +56,7 @@ module.exports = (_ => {
         return class InputSwitcher extends Plugin {
 
             onStart() {
-                this.UserStore = BdApi.findModuleByProps('getCurrentUser');
+                this.UserStore = BdApi.findModuleByProps('getUser');
                 this.MessageActions = BdApi.findModuleByProps('editMessage');
             }
             // right click on text input
@@ -64,15 +64,30 @@ module.exports = (_ => {
                 if (!e.instance.props.editor) {
                     return;
                 }
-                const textInputValue = this.getTextInputValue(e.instance.props.editor.children[0].children);
-                if (textInputValue) {
+
+                const textInput = e.instance.props.editor.children[0].children;
+                if (textInput.length > 1 || textInput[0].text != '') { // if some text in the input
                     e.returnvalue.props.children.push(BDFDB.ContextMenuUtils.createItem(BDFDB.LibraryComponents.MenuItems.MenuItem, {
                         label: 'Switch',
                         id: `SwitchPopUp`,
-                        action: _ => {
-                            this.setTextInputValue(e.instance.props.editor, this.swapLanguage(textInputValue));
-                        }
+                        children: [
+                            BDFDB.ContextMenuUtils.createItem(BDFDB.LibraryComponents.MenuItems.MenuItem, {
+                                label: 'Languange',
+                                id: 'SwitchLanguange',
+                                action: _ => 
+                                    this.setTextInputValue(e.instance.props.editor, // () => to prevent loss of 'this'
+                                        this.changeTextInputValue(textInput, (text) => this.swapLanguage(text))) 
+                            }),
+                            BDFDB.ContextMenuUtils.createItem(BDFDB.LibraryComponents.MenuItems.MenuItem, {
+                                label: 'Case',
+                                id: 'SwitchCase',
+                                action: _ => 
+                                    this.setTextInputValue(e.instance.props.editor, 
+                                        this.changeTextInputValue(textInput, (text) => this.swapCase(text)))
+                            })
+                        ]
                     }));
+
                 }
             }
             // right click on message
@@ -80,50 +95,66 @@ module.exports = (_ => {
                 const props = e.instance.props;
                 if (props.message && props.channel) {
                     let [children, index] = BDFDB.ContextMenuUtils.findItem(e.returnvalue, { id: ["edit", "add-reaction", "quote"] });
-                    children.splice(children.length - 1, 0, BDFDB.ContextMenuUtils.createItem(BDFDB.LibraryComponents.MenuItems.MenuItem, {
+                    const child = {
                         label: 'Switch',
                         id: `SwitchPopUp`,
-                        action: _ => {
-                            if (props.message.author.id == this.getCurrentUser().id) {
-                                this.editMessage(props.channel.id, props.message.id, this.swapLanguage(props.message.content));
-                            }
-                            else {
-                                this.createMessagePopUp(props.message);
-                            }
-                        }
-                    }));
-
+                    };
+                    if (props.message.author.id == this.getCurrentUser().id) {
+                        child.children = [
+                            BDFDB.ContextMenuUtils.createItem(BDFDB.LibraryComponents.MenuItems.MenuItem, {
+                                label: 'Languange',
+                                id: 'SwitchLanguange',
+                                action: _ => {
+                                    const newMessage = this.swapLanguage(props.message.content);
+                                    if (props.message.content != newMessage) {
+                                        this.editMessage(props.channel.id, props.message.id, newMessage);
+                                    }
+                                }
+                            }),
+                            BDFDB.ContextMenuUtils.createItem(BDFDB.LibraryComponents.MenuItems.MenuItem, {
+                                label: 'Case',
+                                id: 'SwitchCase',
+                                action: _ => {
+                                    const newMessage = this.swapCase(props.message.content);
+                                    if (props.message.content != newMessage) {
+                                        this.editMessage(props.channel.id, props.message.id, newMessage);
+                                    }
+                                }
+                            })
+                        ]
+                    }
+                    else {
+                        child.action = _ => this.createMessagePopUp(props.message);
+                    }
+                    children.splice(children.length - 1, 0, BDFDB.ContextMenuUtils.createItem(BDFDB.LibraryComponents.MenuItems.MenuItem, child));
                 }
             }
 
-            getTextInputValue(childrens) {
-                let text = ''
-                childrens.forEach(e => {
-                    if (e.text && e.text != '') {
-                        text += e.text;
+            changeTextInputValue(children, callback) {           
+                /*
+                * (input image) https://media.discordapp.net/attachments/768531187110510602/1060284916622950521/image.png
+                * values in the input stored like objects, not like a single string
+                * (input value image) https://media.discordapp.net/attachments/768531187110510602/1060284688020807731/image.png
+                */
+                return children.map(e => {
+                    if (Object.keys(e).length == 1 && e.text != '') { // we need only text values -> {text: 'text'}
+                        const copy = Object.assign({}, e); // cannot modify read-only
+                        copy.text = callback(copy.text); // execute callback on each text value
+                        return copy;
                     }
-                    else {
-                        if (e.type == 'emoji') {
-                            text += e.emoji.surrogate
-                        }
-                        if (e.type == 'customEmoji') {
-                            text += `<${e.emoji.name}${e.emoji.emojiId}>`;
-                        }
-                    }
+                    return e;
                 });
-                return text;
             }
 
             setTextInputValue(editor, replacement) {
-                if (!editor) return;
                 editor.history.stack.splice(editor.history.index + 1, 0, {
                     type: "other",
                     mergeable: false,
                     createdAt: new Date().getTime(),
-                    value: BDFDB.SlateUtils.toRichValue(replacement),
+                    value: [{ children: replacement, type: 'line' }],
                     selection: editor.history.stack[editor.history.index].selection
                 });
-                editor.redo();
+                editor.redo(); // input rerender
             }
 
             editMessage(channelId, messageId, content) {
@@ -134,77 +165,96 @@ module.exports = (_ => {
                 return this.UserStore.getCurrentUser();
             }
 
+            getUser(id) {
+                return this.UserStore.getUser(id);
+            }
+
             createMessagePopUp(message) {
                 const popoutHTML =
                     `<div>
-                <div class="item-1BCeuB role-member">
-                    <div class="itemCheckbox-2G8-Td">
-                        <div class="avatar-1XUb0A wrapper-1VLyxH" role="img" aria-hidden="false" style="width: 32px; height: 32px;">
-                            <svg width="40" height="32" viewBox="0 0 40 32" class="mask-1FEkla svg-2azL_l" aria-hidden="true">
-                                <foreignObject x="0" y="0" width="32" height="32" mask="url(#svg-mask-avatar-default)">
-                                    <div class="avatarStack-3vfSFa">
-                                        <img src="${message.author.getAvatarURL()}" alt=" " class="avatar-b5OQ1N" aria-hidden="true">
-                                    </div>
-                                </foreignObject>
-                            </svg>
+                        <div class="item-1BCeuB role-member">
+                            <div class="itemCheckbox-2G8-Td">
+                                <div class="avatar-1XUb0A wrapper-1VLyxH" role="img" aria-hidden="false" style="width: 32px; height: 32px;">
+                                    <svg width="40" height="32" viewBox="0 0 40 32" class="mask-1FEkla svg-2azL_l" aria-hidden="true">
+                                        <foreignObject x="0" y="0" width="32" height="32" mask="url(#svg-mask-avatar-default)">
+                                            <div class="avatarStack-3vfSFa">
+                                                <img src="${message.author.getAvatarURL()}" alt=" " class="avatar-b5OQ1N" aria-hidden="true">
+                                            </div>
+                                        </foreignObject>
+                                    </svg>
+                                </div>
+                            </div>
+                            <div class="itemLabel-27pirQ">
+                                <span class="username">
+                                    ${message.author.username}
+                                </span>
+                                <span class="discriminator-2jnrqC">
+                                    #${message.author.discriminator}
+                                </span>                   
+                            </div>                                                                       
                         </div>
-                    </div>
-                    <div class="itemLabel-27pirQ">
-                        <span class="username">
-                            ${message.author.username}
-                        </span>
-                        <span class="discriminator-2jnrqC">
-                            #${message.author.discriminator}
-                        </span>                   
-                    </div>                                                                       
-                </div>
-                <br> 
-                <span style="color:#dddddd">                                   
-                ${this.swapLanguage(message.content.replace(/<:\w+:\d+>|<@&{0,1}\d+>/g, ''))}                             
-                <span>   
-            <div>`;
+                        <br> 
+                        <span style="color:#dddddd">                                   
+                        ${this.swapLanguage(message.content.replace(/<:\w+:\d+>|<@&{0,1}\d+>/g, ''))}                             
+                        <span>   
+                    <div>`;
 
                 BDFDB.ModalUtils.open(this, {
                     children: [BDFDB.ReactUtils.elementToReact(BDFDB.DOMUtils.create(popoutHTML))],
                 });
             }
 
+            swapCase(message) {
+                return this.swapWords(message, (word) => {
+                    return word.split("").map(l => l == l.toLowerCase() ? l.toUpperCase() : l.toLowerCase()).join("");
+                })
+            }
+
             swapLanguage(message) {
-                var swappedMessage = ''
-                var words = message.split(' ');
+                return this.swapWords(message, (word) => {
+                    var changedWord = '';
+                    word.split('').forEach((char, index) => { // iterate words character by character
+                        var letter = this.letters[char.toLowerCase()];
+                        if (letter) {
+                            if (char == char.toLowerCase()) {
+                                letter = letter.toLowerCase(); // save original character case 
+                            }
+                            else {
+                                letter = letter.toUpperCase();
+                            }
+                        } else {
+                            letter = char;
+                        }
+                        changedWord += letter;
+                    });
+                    return changedWord;
+                });
+            }
+
+            swapWords(string, callback) {
+                // executes callback on each word that don't match in regexp. I have no idea how to do this better
+                // it's just works
+                var swappedString = ''
+                var words = string.split(' ');
                 const regExp = /<:\w+:\d+>|https{0,1}:\/\/[^ ]*(?!\.)[^. ]+|<@&{0,1}\d+>|@here|@everyone/g; // guild emoji | URL | user/role mention | here/everyone
                 for (let wordsIterator in words) {
                     const word = words[wordsIterator];
                     const dump = word.match(regExp);
                     var result, indexes = [];
                     while ((result = regExp.exec(word))) {
-                        indexes.push(result.index); // сохраняем позицию игнорируемых частей строки
+                        indexes.push(result.index); // save position of the ignored parts of the string 
                     }
                     var text = word;
                     for (let dumpIterator in dump) {
-                        text = text.replace(dump[dumpIterator], ' '.repeat(dump[dumpIterator].length)); // убираем их, чтобы достать нужное
+                        text = text.replace(dump[dumpIterator], ' '.repeat(dump[dumpIterator].length)); // replace it to get needed things
                     }
-                    var wordsToChange = text.match(/[^ ]+/g); // достаём нужные слова из строки с пробелами
+                    var wordsToChange = text.match(/[^ ]+/g); // get needed words from the string with spaces 
 
                     for (let wordsToChangeIterator in wordsToChange) {
-                        var changedWord = '';
-                        wordsToChange[wordsToChangeIterator].split('').forEach((char, index) => { // перебираем слова посимвольно
-                            var letter = this.letters[char.toLowerCase()];
-                            if (letter) {
-                                if (char == char.toLowerCase()) {
-                                    letter = letter.toLowerCase(); // сохраняем регистр оригинальных символов
-                                }
-                                else {
-                                    letter = letter.toUpperCase();
-                                }
-                            } else {
-                                letter = char;
-                            }
-                            changedWord += letter;
-                        });
-                        text = text.replace(wordsToChange[wordsToChangeIterator], changedWord); // восстанавливаем оригинал
+                        var changedWord = callback(wordsToChange[wordsToChangeIterator]);
+                        text = text.replace(wordsToChange[wordsToChangeIterator], changedWord); // restore original 
                     }
-
+                 
                     for (let dumpIterator in dump) {
                         const replaceAt = (string, index, replacement) => { // https://stackoverflow.com/a/1431113
                             return string.substring(0, index) + replacement + string.substring(index + replacement.length);
@@ -212,13 +262,11 @@ module.exports = (_ => {
                         text = replaceAt(text, indexes[dumpIterator], dump[dumpIterator]);
                     }
 
-                    swappedMessage += text + ' ';
+                    swappedString += text + ' ';
 
                 }
-                return swappedMessage.trim();
-
+                return swappedString.slice(0, -1); // delete last space
             }
-
             onStop() {
 
             }
