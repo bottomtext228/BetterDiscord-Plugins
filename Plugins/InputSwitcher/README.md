@@ -1,12 +1,12 @@
 # InputSwitcher
-Switches the keyboard layout of the message ( RU & EN ) 
+Switches the keyboard layout(RU & EN)/case of the message.
 
 Adds "Switch" buttons to the context menus of the message and text input. If you clicked on your message, it will be edited, if not, a pop-up window with the changed text will appear.
 
 
 ![Image](./res/screenshot.png)
 ![Image1](./res/screenshot1.png)
-![Image2](./res/screenshot2.png)
+
 
 
 # Requirements: 
