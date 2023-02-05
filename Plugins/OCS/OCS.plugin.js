@@ -1,6 +1,6 @@
 /**
  * @name OCS
- * @version 2.1.0
+ * @version 2.1.4
  * @description Orpheus Containment System.
  * @author bottom_text | Z-Team
 */
@@ -27,14 +27,13 @@ module.exports = class OCS {
 
 		this.findWebPacks();
 
-
-
 		this.members = [];
 		this.fs = require('fs');
 		this.path = require('path');
 		this.configPath = this.getConfigPath();
 		this.containedObjects = this.loadSettings();
 		this.labels = this.setLabelsByLanguage();
+		this.sendedMessages = [];
 
 		console.log(`${this.name}: started!`);
 
@@ -64,6 +63,7 @@ module.exports = class OCS {
 		const dispatch = args[0];
 		if (!dispatch)
 			return;
+
 		if (dispatch.type == 'MESSAGE_CREATE') {
 
 			const isLocalUser = dispatch.message.author.id == this.getCurrentUser().id;
@@ -89,7 +89,20 @@ module.exports = class OCS {
 						message += this.prepareEmojiToSend(reaction, true);
 					});
 					if (!isLocalUser || message != dispatch.message.content) { // избегаем "рекурсии" при работе на локального пользователя
-						this.sendMessage(dispatch.message.channel_id, message);
+						this.sendMessage(dispatch.message.channel_id, message, (response) => {
+							if (response.ok) {
+								if (this.sendedMessages.length >= 75) { // MAX_SIZE. Prevent memory leaks
+									const message = this.sendedMessages.shift();
+									this.deleteMessage(message.channelId, message.messageId);
+
+								} // чтобы удалить свои сообщения в последствии надо сохранить их id 
+								this.sendedMessages.push({
+									messageId: response.body.id,
+									repliedMessageId: dispatch.message.id,
+									channelId: dispatch.message.channel_id
+								});
+							}
+						});
 					}
 				}
 
@@ -97,8 +110,145 @@ module.exports = class OCS {
 
 
 		}
+		if (dispatch.type == 'MESSAGE_DELETE') {
+			/* Если жертва удаляет свои сообщения, мы удаляем свои  */
+			const message = this.sendedMessages.find(e => e.repliedMessageId == dispatch.id);
+			if (message) {
+				this.deleteMessage(dispatch.channelId, message.messageId);
+				this.sendedMessages.splice(this.sendedMessages.indexOf(message), 1);
+			}
+		}
 
 	}
+
+
+
+	saveSettings() {
+		this.fs.writeFileSync(this.configPath, JSON.stringify(this.containedObjects));
+	}
+
+	getConfigPath() {
+		return this.path.join(BdApi.Plugins.folder, `${this.name}.config.json`);
+	}
+
+	sendMessage(channelId, content, responseCallback) {
+		this.MessageQueueWebPack.enqueue({
+			type: 0,
+			message: {
+				channelId: channelId,
+				content: content,
+			} // callback is called when we get server's response
+		}, typeof (responseCallback) == 'function' ? responseCallback : () => { });
+	}
+
+	deleteMessage(channelId, messageId) {
+		return this.MessageUtilitiesWebPack.deleteMessage(channelId, messageId);
+	}
+
+	getMembers(guildId) {
+		return this.GetMembersWebPack.getMembers(guildId);
+	}
+
+	getGuild(guildId) {
+		return this.GetGuildWebPack.getGuild(guildId);
+	}
+
+	getGuilds() {
+		return this.GuildUtilities.getGuilds();
+	}
+
+	getCurrentUser() {
+		return this.GetCurrentUserWebPack.getCurrentUser();
+	}
+
+	getUser(id) {
+		return this.GetUserWebPack.getUser(id);
+	}
+
+	getEmojiUrl(emojiSurrogate) { // example: '🐖' -> '/assets/d083412544c302d290775006877f6202.svg'
+		return this.EmojiUtilitiesWebpack.getURL(emojiSurrogate)
+	}
+
+	onComponentDispatchDispatchEvent(args, callDefault) {
+		const event = args[0];
+		if (event != 'SHAKE_APP') { // убираем тряску экрана
+			callDefault(...args);
+		}
+	}
+
+	sendReaction(channelId, messageId, emojiName) {
+		const emoji = this.prepareEmojiToSend(emojiName);
+		this.ReactionUtilities.rU(channelId, messageId, emoji, undefined, { burst: false })
+	}
+
+	prepareEmojiToSend(emojiName, toString = false) { // tostring - bool. false - return object for addReaction, true - return string for message
+		const emoji = this.GetByNameEmojieWebPack.getByName(emojiName);
+		if (emoji) {
+			return toString ? emoji.surrogates : {
+				id: emoji.id == undefined ? null : emoji.id,
+				name: emoji.surrogates,
+				animated: emoji.animated,
+			}
+		} else {
+			const customEmoji = this.getCustomEmoji(emojiName);
+			if (customEmoji) {
+				return toString ? `<:${customEmoji.name}:${customEmoji.id}>` : {
+					id: customEmoji.id == undefined ? null : customEmoji.id,
+					name: customEmoji.name,
+					animated: customEmoji.animated,
+				}
+			}
+		}
+		return '';
+	}
+
+	getCustomEmoji(customEmojiName) {
+		for (const guildId in this.getGuilds()) {
+			const guildEmojiArray = this.GuildUtilities.getGuildEmoji(guildId); // получаем массив со всеми объектами кастомных эмодзи
+			const customEmoji = guildEmojiArray.find(guildEmoji => guildEmoji.name == customEmojiName); // находим нужный
+			if (customEmoji) {
+				return customEmoji;
+			}
+		}
+	}
+
+
+	createButton(label, callback, id) {
+		const ret = this.parseHTML(`<button type="button" class="button-f2h6uQ lookFilled-yCfaCM colorBrand-I6CyqQ sizeSmall-wU2dO- grow-2sR_-F" ${(id ? 'id="' + id + '"' : '')}><div class="contents-3ca1mk">${label}</div></button>`);
+		if (callback) {
+			ret.addEventListener('click', callback);
+		}
+		return ret;
+	}
+
+	parseHTML(html) {
+		// TODO: drop this func, it's 75% slower than just making the elements manually
+		var template = document.createElement('template');
+		html = html.trim(); // Never return a text node of whitespace as the result
+		template.innerHTML = html;
+		return template.content.firstChild;
+	}
+
+	findWebPacks() {
+
+		/* зачем все эти приколы с эмодзи помещать в разные модули??? */
+		this.ReactionUtilities = ZeresPluginLibrary.WebpackModules.getByProps('rU', 'wX'); // ...
+		this.EmojiUtilitiesWebpack = ZeresPluginLibrary.WebpackModules.getByProps('getURL');
+		this.GuildUtilities = ZeresPluginLibrary.WebpackModules.getByProps('getGuildEmoji');
+		this.GetByNameEmojieWebPack = ZeresPluginLibrary.WebpackModules.getByProps('getByName');
+
+		this.ComponentDispatchWebpack = ZeresPluginLibrary.WebpackModules.getByProps('S', 'b').S // ...
+		this.DispatchWebPack = ZeresPluginLibrary.WebpackModules.find(e => e.dispatch && !e.getCurrentUser);
+		this.GetUserWebPack = ZeresPluginLibrary.WebpackModules.getByProps('getUser');
+		this.GetCurrentUserWebPack = ZeresPluginLibrary.WebpackModules.getByProps('getCurrentUser');
+		this.GetGuildWebPack = ZeresPluginLibrary.WebpackModules.getByProps('getGuild');
+		this.GetMembersWebPack = ZeresPluginLibrary.WebpackModules.getByProps('getMembers');
+		this.MessageQueueWebPack = ZeresPluginLibrary.WebpackModules.getByProps('enqueue');
+		this.MessageUtilitiesWebPack = ZeresPluginLibrary.WebpackModules.getByProps('deleteMessage');
+
+	}
+
+
 
 	getSettingsPanel() {
 
@@ -109,7 +259,7 @@ module.exports = class OCS {
 				class="button-f2h6uQ lookFilled-yCfaCM colorBrand-I6CyqQ sizeSmall-wU2dO- grow-2sR_-F">
 				<div class="contents-3ca1mk">${this.labels.add_button}</div>
 			</button>
-			
+					
 			<pre>&nbsp</pre>
 
 			<div id="containedObjects"> 
@@ -220,9 +370,7 @@ module.exports = class OCS {
 					const member = this.members[membersIterator];
 					if (member.username.toLowerCase().search(usernameToFind.toLowerCase()) != -1) {
 						const row = document.createElement('tr');
-						row.innerHTML =
-							`<td coldspan ='2'>${member.username}</td>`
-
+						row.innerHTML = `<td coldspan ='2'>${member.username}</td>`
 						membersTable.append(row);
 					}
 				}
@@ -231,159 +379,62 @@ module.exports = class OCS {
 			}
 		});
 
+		if (this.sendedMessages.length > 0) {
+			const deleteButton =
+				this.parseHTML(
+					`<button type="button" id="delete_button" style="width:565px"
+				class="button-f2h6uQ lookFilled-yCfaCM colorBrand-I6CyqQ sizeSmall-wU2dO- grow-2sR_-F">
+				<div class="contents-3ca1mk">${this.labels.delete_button}</div>
+				</button>`
+				);
+			deleteButton.addEventListener('click', async e => {
+				const wait = (ms) => {
+					return new Promise((resolve, reject) => {
+						setTimeout(resolve, ms);
+					})
+				}
+				for (let messageIndex in this.sendedMessages) {
+					const message = this.sendedMessages[messageIndex];
+					this.deleteMessage(message.channelId, message.messageId);
+					await wait(500); // prevent rate limit
+				}
+				this.sendedMessages = [];
+			})
+			html.append(deleteButton);
+		}
 		return html;
 	}
 
-	saveSettings() {
-		this.fs.writeFileSync(this.configPath, JSON.stringify(this.containedObjects));
-	}
-	getConfigPath() {
-		return this.path.join(BdApi.Plugins.folder, `${this.name}.config.json`);
-	}
-
-	findWebPacks() {
-
-		/* зачем все эти приколы с эмодзи помещать в разные модули??? */
-		this.ReactionUtilities = ZeresPluginLibrary.WebpackModules.getByProps('rU', 'wX'); // ...
-		this.EmojiUtilitiesWebpack = ZeresPluginLibrary.WebpackModules.getByProps('getURL');
-		this.GuildUtilities = ZeresPluginLibrary.WebpackModules.getByProps('getGuildEmoji');
-		this.GetByNameEmojieWebPack = ZeresPluginLibrary.WebpackModules.getByProps('getByName');
-
-		this.ComponentDispatchWebpack = ZeresPluginLibrary.WebpackModules.getByProps('S', 'b').S // ...
-		this.DispatchWebPack = ZeresPluginLibrary.WebpackModules.find(e => e.dispatch && !e.getCurrentUser);
-		this.GetUserWebPack = ZeresPluginLibrary.WebpackModules.getByProps('getUser');
-		this.GetCurrentUserWebPack = ZeresPluginLibrary.WebpackModules.getByProps('getCurrentUser');
-		this.GetGuildWebPack = ZeresPluginLibrary.WebpackModules.getByProps('getGuild');
-		this.GetMembersWebPack = ZeresPluginLibrary.WebpackModules.getByProps('getMembers');
-		this.MessageQueueWebPack = ZeresPluginLibrary.WebpackModules.getByProps('enqueue');
-
-	}
-
-	sendMessage(channelId, content) {
-		this.MessageQueueWebPack.enqueue({
-			type: 0,
-			message: {
-				channelId: channelId,
-				content: content,
-			}
-		}, r => {
-			return
-		});
-	}
-
-	getMembers(guildId) {
-		return this.GetMembersWebPack.getMembers(guildId);
-	}
-
-	getGuild(guildId) {
-		return this.GetGuildWebPack.getGuild(guildId);
-	}
-
-	getGuilds() {
-		return this.GuildUtilities.getGuilds();
-	}
-
-	getCurrentUser() {
-		return this.GetCurrentUserWebPack.getCurrentUser();
-	}
-
-	getUser(id) {
-		return this.GetUserWebPack.getUser(id);
-	}
-
-	getEmojiUrl(emojiSurrogate) { // example: '🐖' -> '/assets/d083412544c302d290775006877f6202.svg'
-		return this.EmojiUtilitiesWebpack.getURL(emojiSurrogate)
-	}
-
-	onComponentDispatchDispatchEvent(args, callDefault) {
-		const event = args[0];
-		if (event != 'SHAKE_APP') { // убираем тряску экрана
-			callDefault(...args);
-		}
-	}
-
-	sendReaction(channelId, messageId, emojiName) {
-		const emoji = this.prepareEmojiToSend(emojiName);
-		this.ReactionUtilities.rU(channelId, messageId, emoji, undefined, { burst: false })
-	}
-
-	prepareEmojiToSend(emojiName, toString = false) { // tostring - bool. false - return object for addReaction, true - return string for message
-		const emoji = this.GetByNameEmojieWebPack.getByName(emojiName);
-		if (emoji) {
-			return toString ? emoji.surrogates : {
-				id: emoji.id == undefined ? null : emoji.id,
-				name: emoji.surrogates,
-				animated: emoji.animated,
-			}
-		} else {
-			const customEmoji = this.getCustomEmoji(emojiName);
-			if (customEmoji) {
-				return toString ? `<:${customEmoji.name}:${customEmoji.id}>` : {
-					id: customEmoji.id == undefined ? null : customEmoji.id,
-					name: customEmoji.name,
-					animated: customEmoji.animated,
-				}
-			}
-		}
-		return '';
-	}
-
-	getCustomEmoji(customEmojiName) {
-		for (const guildId in this.getGuilds()) {
-			const guildEmojiArray = this.GuildUtilities.getGuildEmoji(guildId); // получаем массив со всеми объектами кастомных эмодзи
-			const customEmoji = guildEmojiArray.find(guildEmoji => guildEmoji.name == customEmojiName); // находим нужный
-			if (customEmoji) {
-				return customEmoji;
-			}
-		}
-	}
-
-
-	createButton(label, callback, id) {
-		const ret = this.parseHTML(`<button type="button" class="button-f2h6uQ lookFilled-yCfaCM colorBrand-I6CyqQ sizeSmall-wU2dO- grow-2sR_-F" ${(id ? 'id="' + id + '"' : '')}><div class="contents-3ca1mk">${label}</div></button>`);
-		if (callback) {
-			ret.addEventListener('click', callback);
-		}
-		return ret;
-	}
-	parseHTML(html) {
-		// TODO: drop this func, it's 75% slower than just making the elements manually
-		var template = document.createElement('template');
-		html = html.trim(); // Never return a text node of whitespace as the result
-		template.innerHTML = html;
-		return template.content.firstChild;
-	}
 	renderContainedObject(objectIterator, html) {
 
 		const popoutHTML =
-			`<div><div id="containedUser" class="item-1BCeuB role-member">
-			<div class="itemCheckbox-2G8-Td">
-				<div class="avatar-1XUb0A wrapper-1VLyxH" role="img" aria-hidden="false" style="width: 32px; height: 32px;">
-					<svg width="40" height="32" viewBox="0 0 40 32" class="mask-1FEkla svg-2azL_l" aria-hidden="true">
-						<foreignObject x="0" y="0" width="32" height="32" mask="url(#svg-mask-avatar-default)">
-						<div class="avatarStack-3vfSFa">
-							<img src="{{avatar_url}}" alt=" " class="avatar-b5OQ1N" aria-hidden="true">
+			`<div>	
+				<div id="containedUser">
+					<div style="display: flex; justify-content: left;">
+						<img style="height: 32px; height: 32px; border-radius: 50%;" src="{{avatar_url}}">			
+						<div style="margin-left: 10px; margin-top: 5px">
+							<span class="userTagUsernameNoNickname-2e_xaO" aria-expanded="false" role="button" tabindex="0">
+								{{username}}
+							</span>
+							<span class="discrimBase-KriZSj">
+								{{discriminator}}
+							</span>
 						</div>
-						</foreignObject>
-					</svg>
+					</div>
 				</div>
-			</div>
-			<div class="itemLabel-27pirQ">
-				<span class="username">
-					{{username}}
-				</span>
-				<span class="discriminator-2jnrqC">
-					{{discriminator}}
-				</span>
-				<table id="emojies">
-				</table>
-			</div>
-		</div></div>`;
-
+				<div style="margin-left: 40px;">
+					<table id="emojies">
+					</table>
+				</div>
+			</div>`;
 
 		const currentObject = this.containedObjects[objectIterator];
 
 		const user = this.getUser(currentObject.id)
+
+		if (!user) {
+			return;
+		}
 
 		const elem = ZeresPluginLibrary.DOMTools.createElement(ZeresPluginLibrary.Utilities.formatString(popoutHTML,
 			{ username: user.username, discriminator: "#" + user.discriminator, avatar_url: user.getAvatarURL() }))
@@ -529,30 +580,21 @@ module.exports = class OCS {
 	}
 	renderUser(user) {
 		const popoutHTML =
-			`<div class="item-1BCeuB role-member">
-		<div class="itemCheckbox-2G8-Td">
-			<div class="avatar-1XUb0A wrapper-1VLyxH" role="img" aria-hidden="false" style="width: 32px; height: 32px;">
-				<svg width="40" height="32" viewBox="0 0 40 32" class="mask-1FEkla svg-2azL_l" aria-hidden="true">
-					<foreignObject x="0" y="0" width="32" height="32" mask="url(#svg-mask-avatar-default)">
-					<div class="avatarStack-3vfSFa">
-						<img src="{{avatar_url}}" alt=" " class="avatar-b5OQ1N" aria-hidden="true">
-					</div>
-					</foreignObject>
-				</svg>
-			</div>
-		</div>
-		<div class="itemLabel-27pirQ">
-			<span class="username">
-				{{username}}
-			</span>
-			<span class="discriminator-2jnrqC">
-				{{discriminator}}
-			</span>
-		
-		</div>
-		<div id="confirmAdd">
-		</div>
-	</div>`;
+		`<div>
+			<div style="margin-top: 10px; margin-bottom: 10px; display: flex; justify-content: left;">
+				<img style="height: 32px; height: 32px; border-radius: 50%;" src="{{avatar_url}}">			
+				<span style="margin-left: 10px; margin-top: 5px">
+					<span class="userTagUsernameNoNickname-2e_xaO" aria-expanded="false" role="button" tabindex="0">
+						{{username}}
+					</span>
+					<span class="discrimBase-KriZSj">
+						{{discriminator}}
+					</span>
+					</span>
+				<div id="confirmAdd" style="margin-right: 0px; margin-left: auto;"></div>
+			</div>		
+		</div>`;
+
 
 
 		const elem = ZeresPluginLibrary.DOMTools.createElement(ZeresPluginLibrary.Utilities.formatString(popoutHTML,
@@ -619,7 +661,8 @@ module.exports = class OCS {
 					delete_object: 'Удалить объект',
 					save_settings: 'Сохранить настройки',
 					containing_method_reactions: 'Реакции',
-					containing_method_message: 'Сообщение'
+					containing_method_message: 'Сообщение',
+					delete_button: 'Удалить сообщения'
 				}
 			default:
 				return {
@@ -636,7 +679,8 @@ module.exports = class OCS {
 					delete_object: 'Delete object',
 					save_settings: 'Save settings',
 					containing_method_reactions: 'Reactions',
-					containing_method_message: 'Message'
+					containing_method_message: 'Message',
+					delete_button: 'Delete messages'
 				}
 		}
 
