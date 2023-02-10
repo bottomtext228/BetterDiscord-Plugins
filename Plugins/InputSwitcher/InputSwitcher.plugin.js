@@ -1,6 +1,6 @@
 /**
  * @name InputSwitcher
- * @version 1.2.0
+ * @version 1.2.1
  * @author bottom_text | Z-Team 
  * @description Switches the keyboard layout(RU & EN)/case of the message.
  * @source https://github.com/bottomtext228/BetterDiscord-Plugins/tree/main/Plugins/InputSwitcher
@@ -171,33 +171,22 @@ module.exports = (_ => {
 
             createMessagePopUp(message) {
                 const popoutHTML =
-                    `<div>
-                        <div class="item-1BCeuB role-member">
-                            <div class="itemCheckbox-2G8-Td">
-                                <div class="avatar-1XUb0A wrapper-1VLyxH" role="img" aria-hidden="false" style="width: 32px; height: 32px;">
-                                    <svg width="40" height="32" viewBox="0 0 40 32" class="mask-1FEkla svg-2azL_l" aria-hidden="true">
-                                        <foreignObject x="0" y="0" width="32" height="32" mask="url(#svg-mask-avatar-default)">
-                                            <div class="avatarStack-3vfSFa">
-                                                <img src="${message.author.getAvatarURL()}" alt=" " class="avatar-b5OQ1N" aria-hidden="true">
-                                            </div>
-                                        </foreignObject>
-                                    </svg>
-                                </div>
-                            </div>
-                            <div class="itemLabel-27pirQ">
-                                <span class="username">
+		            `<div>
+                        <div style="margin-bottom: 10px; display: flex; justify-content: left;">
+                            <img style="height: 32px; height: 32px; border-radius: 50%;" src="${message.author.getAvatarURL()}">			
+                            <span style="margin-left: 10px; margin-top: 5px">
+                                <span class="userTagUsernameNoNickname-2e_xaO" aria-expanded="false" role="button" tabindex="0">
                                     ${message.author.username}
                                 </span>
-                                <span class="discriminator-2jnrqC">
+                                <span class="discrimBase-KriZSj">
                                     #${message.author.discriminator}
-                                </span>                   
-                            </div>                                                                       
-                        </div>
-                        <br> 
-                        <span style="color:#dddddd">                                   
-                        ${this.swapLanguage(message.content.replace(/<:\w+:\d+>|<@&{0,1}\d+>/g, ''))}                             
-                        <span>   
-                    <div>`;
+                                </span>
+                            </span>
+			            </div>
+                        <div style="color:#dddddd">                                   
+                            ${this.swapLanguage(message.content.replace(/<:\w+:\d+>|<@&{0,1}\d+>/g, ''))}                             
+                        <span>   	
+		            </div>`;
 
                 BDFDB.ModalUtils.open(this, {
                     children: [BDFDB.ReactUtils.elementToReact(BDFDB.DOMUtils.create(popoutHTML))],
@@ -272,80 +261,80 @@ module.exports = (_ => {
             }
 
             letters = {
-                'a': 'ф',
-                'b': 'и',
-                'c': 'с',
-                'd': 'в',
-                'e': 'у',
-                'f': 'а',
-                'g': 'п',
-                'h': 'р',
-                'i': 'ш',
-                'j': 'о',
-                'k': 'л',
-                'l': 'д',
-                'm': 'ь',
-                'n': 'т',
-                'o': 'щ',
-                'p': 'з',
-                'q': 'й',
-                'r': 'к',
-                's': 'ы',
-                't': 'е',
-                'u': 'г',
-                'v': 'м',
-                'w': 'ц',
-                'x': 'ч',
-                'y': 'н',
-                'z': 'я',
-                ',': 'б',
-                ';': 'ж',
-                '`': 'ё',
-                '[': 'х',
-                ']': 'ъ',
-                "'": 'э',
-                '.': 'ю',
+                'a': 'С„',
+                'b': 'Рё',
+                'c': 'СЃ',
+                'd': 'РІ',
+                'e': 'Сѓ',
+                'f': 'Р°',
+                'g': 'Рї',
+                'h': 'СЂ',
+                'i': 'С€',
+                'j': 'Рѕ',
+                'k': 'Р»',
+                'l': 'Рґ',
+                'm': 'СЊ',
+                'n': 'С‚',
+                'o': 'С‰',
+                'p': 'Р·',
+                'q': 'Р№',
+                'r': 'Рє',
+                's': 'С‹',
+                't': 'Рµ',
+                'u': 'Рі',
+                'v': 'Рј',
+                'w': 'С†',
+                'x': 'С‡',
+                'y': 'РЅ',
+                'z': 'СЏ',
+                ',': 'Р±',
+                ';': 'Р¶',
+                '`': 'С‘',
+                '[': 'С…',
+                ']': 'СЉ',
+                "'": 'СЌ',
+                '.': 'СЋ',
                 '@': '"',
-                '#': '№',
+                '#': 'в„–',
                 //  '$':';',
                 '^': ':',
                 '&': '?',
                 // RUS TO ENG
-                'а': 'f',
-                'б': ',',
-                'в': 'd',
-                'г': 'u',
-                'д': 'l',
-                'е': 't',
-                'ё': '`',
-                'ж': ';',
-                'з': 'p',
-                'и': 'b',
-                'й': 'q',
-                'к': 'r',
-                'л': 'k',
-                'м': 'v',
-                'н': 'y',
-                'о': 'j',
-                'п': 'g',
-                'р': 'h',
-                'с': 'c',
-                'т': 'n',
-                'у': 'e',
-                'ф': 'a',
-                'х': '[',
-                'ц': 'w',
-                'ч': 'x',
-                'ш': 'i',
-                'щ': 'o',
-                'ъ': ']',
-                'ы': 's',
-                'ь': 'm',
-                'э': "'",
-                'ю': '.',
-                'я': 'z',
+                'Р°': 'f',
+                'Р±': ',',
+                'РІ': 'd',
+                'Рі': 'u',
+                'Рґ': 'l',
+                'Рµ': 't',
+                'С‘': '`',
+                'Р¶': ';',
+                'Р·': 'p',
+                'Рё': 'b',
+                'Р№': 'q',
+                'Рє': 'r',
+                'Р»': 'k',
+                'Рј': 'v',
+                'РЅ': 'y',
+                'Рѕ': 'j',
+                'Рї': 'g',
+                'СЂ': 'h',
+                'СЃ': 'c',
+                'С‚': 'n',
+                'Сѓ': 'e',
+                'С„': 'a',
+                'С…': '[',
+                'С†': 'w',
+                'С‡': 'x',
+                'С€': 'i',
+                'С‰': 'o',
+                'СЉ': ']',
+                'С‹': 's',
+                'СЊ': 'm',
+                'СЌ': "'",
+                'СЋ': '.',
+                'СЏ': 'z',
                 '"': '@',
-                '№': '#',
+                'в„–': '#',
                 // ';':'$', 
                 ':': '^',
                 '?': '&'
