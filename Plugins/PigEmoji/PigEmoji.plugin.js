@@ -1,6 +1,6 @@
 /**
  * @name PigEmoji
- * @version 2.1.0
+ * @version 2.1.1
  * @author bottom_text | Z-Team 
  * @description Replaces emoji button with any emoji.
  * @source https://github.com/bottomtext228/BetterDiscord-Plugins/tree/main/Plugins/PigEmoji
@@ -23,7 +23,7 @@ module.exports = class PigEmoji {
         /* TODO:
             * future: make ability to set custom svg images
         */
-      
+     
         this.settings = BdApi.loadData(this.name, 'settings');
         if (!this.settings) { // load defaults
             this.settings = {
@@ -65,17 +65,10 @@ module.exports = class PigEmoji {
 
     getSettingsPanel() {
         // simple menu 
-        const html = this.parseHTML(
-            `<div>
-           </div>`
-        )
-
+        const html = this.parseHTML(`<div></div>`);
+         
         const input_id = this.parseHTML(
-            `<div class="container-2oNtJn medium-2NClDM">
-                <div class="inner-2pOSmK">
-                    <input type="text" class="input-2m5SfJ" name="message" placeholder="Enter emoji" id="input_id" value="${this.settings.emoji}"/>
-                </div>
-            </div>`
+            `<input type="text" class="${this.inputConstansts.inputDefault}" name="message" placeholder="Enter emoji" id="input_id" value="${this.settings.emoji}"/>`
         );
 
         const padding = this.parseHTML(`<pre id="padding">&nbsp</pre>`); // xd
@@ -181,16 +174,17 @@ module.exports = class PigEmoji {
     async createEmojiButton(props, emojiName) {
 
         const emoji = this.getEmojiByName(emojiName);
-
+        this.emojiButtonClasses = document.getElementsByClassName(this.classConstansts.emojiButton)[0]?.className;
+        console.log(this.emojiButtonClasses);
         return BdApi.React.createElement('div', {
             class: `${this.emojiButtonClassConstansts.CT} ${this.classConstansts.buttonContainer}`, 
             key: 'emoji',
         }, BdApi.React.createElement('button', {
             tabindex: "0",
             'aria-controls': "uid_5",
-            'aria-expanded': "false",
-            'aria-haspopup': "dialog",
-            class: "emojiButtonNormal-35P0_i emojiButton-3FRTuj emojiButton-1fMsf3 button-3BaQ4X button-f2h6uQ lookBlank-21BCro colorBrand-I6CyqQ grow-2sR_-F",
+            'aria-expanded': "false", 
+            'aria-haspopup': "dialog", 
+            class: `${this.classConstansts.emojiButton} ${this.buttonConstansts.button} ${this.buttonConstansts.lookBlank} ${this.buttonConstansts.colorBrand} ${this.buttonConstansts.grow}`, //this.emojiButtonClasses, //"emojiButtonNormal-35P0_i emojiButton-3FRTuj emojiButton-1fMsf3 button-3BaQ4X button-f2h6uQ lookBlank-21BCro colorBrand-I6CyqQ grow-2sR_-F",
             onClick: () => this.openExpressionPickerMenu('emoji', props.type), // () => to save 'this' context
             onMouseEnter: (e) => this.onEmojiHover(e),
             onMouseLeave: (e) => this.onEmojiHover(e)
@@ -238,7 +232,8 @@ module.exports = class PigEmoji {
     }
 
     createButton(label, callback, id) {
-        const ret = this.parseHTML(`<button type="button" class="button-f2h6uQ lookFilled-yCfaCM colorBrand-I6CyqQ sizeSmall-wU2dO- grow-2sR_-F" ${(id ? 'id="' + id + '"' : '')}><div class="contents-3ca1mk">${label}</div></button>`);
+        // this.buttonConstansts = BdApi.findModuleByProps('lookBlank');
+        const ret = this.parseHTML(`<button type="button" class="${this.buttonConstansts.button} ${this.buttonConstansts.lookFilled} ${this.buttonConstansts.colorBrand} ${this.buttonConstansts.sizeSmall} ${this.buttonConstansts.grow}" ${(id ? 'id="' + id + '"' : '')}><div class="contents-3ca1mk">${label}</div></button>`);
         if (callback) {
             ret.addEventListener('click', callback);
         }
@@ -274,9 +269,12 @@ module.exports = class PigEmoji {
 
         this.expressionPickerWebpack = BdApi.findModuleByProps('RO');
 
-        this.classConstansts = BdApi.findModuleByProps('profileBioInput'); // both some html classes/discord constants
-        this.emojiButtonClassConstansts = BdApi.findModuleByProps('X1'); // .X1. EMOJI | GIF | STICKER ( 'emoji' | 'gif' | 'sticker')
+        this.classConstansts = BdApi.findModuleByProps('profileBioInput'); // all three some html classes/discord constants
+        this.buttonConstansts = BdApi.findModuleByProps('lookBlank'); 
+        this.inputConstansts = BdApi.findModuleByProps('inputMini', 'inputDefault');
 
+        this.emojiButtonClassConstansts = BdApi.findModuleByProps('X1'); // .X1. EMOJI | GIF | STICKER ( 'emoji' | 'gif' | 'sticker')
+      
     }
 
     stop() {
