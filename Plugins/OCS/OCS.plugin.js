@@ -1,6 +1,6 @@
 /**
  * @name OCS
- * @version 2.1.4
+ * @version 2.1.5
  * @description Orpheus Containment System.
  * @author bottom_text | Z-Team
 */
@@ -195,7 +195,7 @@ module.exports = class OCS {
 				return toString ? `<:${customEmoji.name}:${customEmoji.id}>` : {
 					id: customEmoji.id == undefined ? null : customEmoji.id,
 					name: customEmoji.name,
-					animated: customEmoji.animated,
+					animated: customEmoji.animated,ButtonConstansts
 				}
 			}
 		}
@@ -213,14 +213,13 @@ module.exports = class OCS {
 	}
 
 
-	createButton(label, callback, id) {
-		const ret = this.parseHTML(`<button type="button" class="button-f2h6uQ lookFilled-yCfaCM colorBrand-I6CyqQ sizeSmall-wU2dO- grow-2sR_-F" ${(id ? 'id="' + id + '"' : '')}><div class="contents-3ca1mk">${label}</div></button>`);
-		if (callback) {
-			ret.addEventListener('click', callback);
-		}
-		return ret;
-	}
-
+    createButton(label, callback, id) {
+        const ret = this.parseHTML(`<button type="button" class="${this.ButtonConstansts.button} ${this.ButtonConstansts.lookFilled} ${this.ButtonConstansts.colorBrand} ${this.ButtonConstansts.sizeSmall} ${this.ButtonConstansts.grow}" ${(id ? 'id="' + id + '"' : '')}><div class="contents-3ca1mk">${label}</div></button>`);
+        if (callback) {
+            ret.addEventListener('click', callback);
+        }
+        return ret;
+    }
 	parseHTML(html) {
 		// TODO: drop this func, it's 75% slower than just making the elements manually
 		var template = document.createElement('template');
@@ -245,7 +244,7 @@ module.exports = class OCS {
 		this.GetMembersWebPack = ZeresPluginLibrary.WebpackModules.getByProps('getMembers');
 		this.MessageQueueWebPack = ZeresPluginLibrary.WebpackModules.getByProps('enqueue');
 		this.MessageUtilitiesWebPack = ZeresPluginLibrary.WebpackModules.getByProps('deleteMessage');
-
+		this.ButtonConstansts = BdApi.findModuleByProps('lookBlank');
 	}
 
 
@@ -256,7 +255,7 @@ module.exports = class OCS {
 			`<div id="main">
 
 			<button type="button" id="add_button" style="width:565px"
-				class="button-f2h6uQ lookFilled-yCfaCM colorBrand-I6CyqQ sizeSmall-wU2dO- grow-2sR_-F">
+				class="${this.ButtonConstansts.button} ${this.ButtonConstansts.lookFilled} ${this.ButtonConstansts.colorBrand} ${this.ButtonConstansts.sizeSmall} ${this.ButtonConstansts.grow}">
 				<div class="contents-3ca1mk">${this.labels.add_button}</div>
 			</button>
 					
@@ -383,7 +382,7 @@ module.exports = class OCS {
 			const deleteButton =
 				this.parseHTML(
 					`<button type="button" id="delete_button" style="width:565px"
-				class="button-f2h6uQ lookFilled-yCfaCM colorBrand-I6CyqQ sizeSmall-wU2dO- grow-2sR_-F">
+				class="${this.ButtonConstansts.button} ${this.ButtonConstansts.lookFilled} ${this.ButtonConstansts.colorBrand} ${this.ButtonConstansts.sizeSmall} ${this.ButtonConstansts.grow}">
 				<div class="contents-3ca1mk">${this.labels.delete_button}</div>
 				</button>`
 				);
