@@ -1,6 +1,6 @@
 /**
  * @name OCS
- * @version 2.1.5
+ * @version 2.1.6
  * @description Orpheus Containment System.
  * @author bottom_text | Z-Team
 */
@@ -195,7 +195,7 @@ module.exports = class OCS {
 				return toString ? `<:${customEmoji.name}:${customEmoji.id}>` : {
 					id: customEmoji.id == undefined ? null : customEmoji.id,
 					name: customEmoji.name,
-					animated: customEmoji.animated,ButtonConstansts
+					animated: customEmoji.animated,
 				}
 			}
 		}
@@ -720,4 +720,3 @@ module.exports = class OCS {
 	}
 
 }
-
