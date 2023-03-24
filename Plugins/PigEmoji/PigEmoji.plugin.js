@@ -1,6 +1,6 @@
 /**
  * @name PigEmoji
- * @version 2.1.1
+ * @version 2.1.2
  * @author bottom_text | Z-Team 
  * @description Replaces emoji button with any emoji.
  * @source https://github.com/bottomtext228/BetterDiscord-Plugins/tree/main/Plugins/PigEmoji
@@ -52,9 +52,10 @@ module.exports = class PigEmoji {
 
         // patch React function to inject our button
         BdApi.Patcher.after(this.name, buttonsContainter.type, 'type', (_, [props], ret) => {
-            if (!this.shouldDrawEmojiButton(ret?.props?.children, props)) {
+            if (!ret || !this.shouldDrawEmojiButton(props)) {
                 return;
-            }
+            }   
+
             // find the emoji button and replace it
             ret.props.children[ret.props.children.indexOf(ret.props.children.find(e => e.key == 'emoji'))] = emojiElement;
             return ret;
@@ -92,7 +93,7 @@ module.exports = class PigEmoji {
     }
 
 
-    shouldDrawEmojiButton(children, props) {
+    shouldDrawEmojiButton(props) {
         if (props.type?.analyticsName == "profile_bio_input") {
             return false;
         }
@@ -175,7 +176,7 @@ module.exports = class PigEmoji {
 
         const emoji = this.getEmojiByName(emojiName);
         this.emojiButtonClasses = document.getElementsByClassName(this.classConstansts.emojiButton)[0]?.className;
-        console.log(this.emojiButtonClasses);
+
         return BdApi.React.createElement('div', {
             class: `${this.emojiButtonClassConstansts.CT} ${this.classConstansts.buttonContainer}`, 
             key: 'emoji',
