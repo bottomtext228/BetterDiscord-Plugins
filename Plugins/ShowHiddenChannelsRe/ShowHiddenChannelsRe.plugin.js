@@ -1,7 +1,7 @@
 /**
  * @name ShowHiddenChannelsRe
  * @author DevilBro + bottom_text | Z-Team
- * @version 1.0.0
+ * @version 1.0.1
  * @description Displays all hidden Channels, which can't be accessed due to Role Restrictions, this won't allow you to read them (impossible). Original plugin by DevilBro is taken down by himself due to BetterDiscord plugins rules. This is re-release version with fixes.
  * @updateUrl https://raw.githubusercontent.com/bottomtext228/BetterDiscord-Plugins/main/Plugins/ShowHiddenChannelsRe/ShowHiddenChannelsRe.plugin.js
  * @source https://github.com/bottomtext228/BetterDiscord-Plugins/tree/main/Plugins/ShowHiddenChannelsRe
@@ -14,7 +14,7 @@ module.exports = (_ => {
 		"info": {
 			"name": "ShowHiddenChannelsRe",
 			"author": "DevilBro + bottom_text | Z-Team",
-			"version": "1.0.0",
+			"version": "1.0.1",
 			"description": "Displays all hidden Channels, which can't be accessed due to Role Restrictions, this won't allow you to read them (impossible)"
 		}
 	};
@@ -61,7 +61,7 @@ module.exports = (_ => {
 		var hiddenChannelCache = {};
 		var accessModal;
 
-	
+
 		const channelGroupMap = {
 			GUILD_TEXT: "SELECTABLE",
 			GUILD_VOICE: "VOCAL",
@@ -97,6 +97,14 @@ module.exports = (_ => {
 			NATIVE: { value: "native", label: "Native Category in correct Order" },
 			BOTTOM: { value: "bottom", label: "Native Category at the bottom" }
 		};
+
+
+		const UnreadChannelUtils = BdApi.findModuleByProps('isForumPostUnread');
+		const VoiceUtils = BdApi.findModuleByProps('getVoiceStateForUser');
+		const ChannelListStore = BdApi.findModuleByProps('getGuildWithoutChangingCommunityRows');
+		const DiscordConstants = BdApi.Webpack.getModule((m) => m?.Plq?.ADMINISTRATOR == 8n);
+
+				
 
 		const UserRowComponent = class UserRow extends BdApi.React.Component {
 			componentDidMount() {
@@ -146,7 +154,7 @@ module.exports = (_ => {
 
 		const RoleRowComponent = class RoleRow extends BdApi.React.Component {
 			render() {
-			
+
 				return BDFDB.ReactUtils.createElement(BDFDB.LibraryComponents.ListRow, {
 					prefix: BDFDB.ReactUtils.createElement("div", {
 						className: BDFDB.disCNS.avataricon + BDFDB.disCNS.listavatar + BDFDB.disCNS.avatariconsizemedium + BDFDB.disCN.avatariconinactive,
@@ -213,32 +221,93 @@ module.exports = (_ => {
 
 			onStart() {
 
+	
+
 				this.saveBlackList(this.getBlackList());
 
+
+			
 				BDFDB.PatchUtils.patch(this, BDFDB.LibraryModules.GuildUtils, "setChannel", {
 					instead: e => {
-						let channelId = (BDFDB.LibraryModules.VoiceUtils.getVoiceStateForUser(e.methodArguments[1]) || {}).channelId;
+						let channelId = (VoiceUtils.getVoiceStateForUser(e.methodArguments[1]) || {}).channelId;
 						if (!channelId || !this.isChannelHidden(channelId)) return e.callOriginalMethod();
 					}
 				});
 
-				BDFDB.PatchUtils.patch(this, BDFDB.LibraryModules.UnreadChannelUtils, "hasUnread", {
+				BDFDB.PatchUtils.patch(this, UnreadChannelUtils, "hasUnread", {
 					after: e => {
 						return e.returnValue && !this.isChannelHidden(e.methodArguments[0]);
 					}
 				});
 
-				BDFDB.PatchUtils.patch(this, BDFDB.LibraryModules.UnreadChannelUtils, "getMentionCount", {
+			
+
+				BDFDB.PatchUtils.patch(this, UnreadChannelUtils, "getMentionCount", {
 					after: e => {
 						return e.returnValue ? (this.isChannelHidden(e.methodArguments[0]) ? 0 : e.returnValue) : e.returnValue;
 					}
 				});
 
 				this.forceUpdateAll();
+			
+				
+			// another method to see blocked channels
+		/* 	
+				BDFDB.PatchUtils.patch(this, BdApi.findModuleByProps('getChannelPermissions'), 'can', {
+					after: e => {
+			
+						if (e.methodArguments[0] == DiscordConstants.Plq.VIEW_CHANNEL) {
+							
+							if (!e.returnValue) {
+								if (!hiddenChannelCache[e.methodArguments[1].guild_id]) {
+									hiddenChannelCache[e.methodArguments[1].guild_id] = [];
+								}
+								if (hiddenChannelCache[e.methodArguments[1].guild_id].indexOf(e.methodArguments[1].id) == -1) {
+									hiddenChannelCache[e.methodArguments[1].guild_id].push(e.methodArguments[1].id)
+									console.log(e.methodArguments[1]);// channel is hidden
+								}
+								return true;
+							
+							}
+							return true;
+						}
+					
+						return e.returnValue;
+
+						return true;
+					}
+				}) */
+
+			
+			}
+
+			rerenderMessageStore() {
+				let LayerProviderIns = BdApi.ReactUtils.getOwnerInstance(document.querySelector(".container-1NXEtd"));
+				let LayerProviderPrototype = LayerProviderIns.__proto__
+				if (LayerProviderIns && LayerProviderPrototype) {
+					let unpatch = BdApi.Patcher.after(this.name, LayerProviderPrototype, 'render', (_, args, ret) => {
+						ret.props.children = typeof ret.props.children.children == "function" ? (_ => { return null; }) : [];
+						this.forceUpdate(LayerProviderIns);
+						unpatch();
+					});
+					this.forceUpdate(LayerProviderIns);
+
+				}
+			}
+
+			forceUpdate(...instances) {
+				for (let ins of instances.flat(10).filter(n => n)) {
+					if (ins.updater && typeof ins.updater.isMounted == "function" && ins.updater.isMounted(ins)) {
+						ins.forceUpdate();
+					}
+				}
 			}
 
 			onStop() {
+				//BDFDB.PatchUtils.forceAllUpdates(this);
 				this.forceUpdateAll();
+				//BDFDB.DiscordUtils.rerenderAll();;
+
 			}
 
 			getSettingsPanel(collapseStates = {}) {
@@ -315,19 +384,22 @@ module.exports = (_ => {
 					delete this.SettingsUpdated;
 					this.forceUpdateAll();
 				}
+				this.forceUpdateAll();
 			}
 
 			forceUpdateAll() {
 				hiddenChannelCache = {};
 
+				this.rerenderMessageStore()
 				BDFDB.PatchUtils.forceAllUpdates(this);
 				BDFDB.ChannelUtils.rerenderAll(); // seems to be useless
-				BDFDB.DiscordUtils.rerenderAll(); // works, but lags a bit. How to properly rerender only channels?
+				//BDFDB.DiscordUtils.rerenderAll(); 
+
 			}
 
 			onUserContextMenu(e) {
 				if (e.subType == "useUserManagementItems" || e.subType == "useMoveUserVoiceItems" || e.subType == "usePreviewVideoItem") {
-					let channelId = (BDFDB.LibraryModules.VoiceUtils.getVoiceStateForUser(e.instance.props.user.id) || {}).channelId;
+					let channelId = (VoiceUtils.getVoiceStateForUser(e.instance.props.user.id) || {}).channelId;
 					if (channelId && this.isChannelHidden(channelId)) return null;
 				}
 			}
@@ -374,7 +446,9 @@ module.exports = (_ => {
 			}
 
 			processChannelsList(e) {
-
+			
+			
+				
 				if (!e.instance.props.guild || e.instance.props.guild.id.length < 16) return;
 				let show = !blackList.includes(e.instance.props.guild.id), sortAtBottom = this.settings.sortOrder.hidden == sortOrders.BOTTOM.value;
 
@@ -420,7 +494,12 @@ module.exports = (_ => {
 				processCategory(e.instance.props.guildChannels.favoritesCategory);
 				processCategory(e.instance.props.guildChannels.recentsCategory);
 				processCategory(e.instance.props.guildChannels.noParentCategory);
+
+
+
 				for (let id in e.instance.props.guildChannels.categories) processCategory(e.instance.props.guildChannels.categories[id], true);
+
+
 			}
 
 			processChannelItem(e) {
@@ -464,6 +543,7 @@ module.exports = (_ => {
 			}
 
 			isChannelHidden(channelId) {
+			
 				let channel = BDFDB.LibraryStores.ChannelStore.getChannel(channelId);
 				if (!channel || !channel.guild_id) return false;
 				return hiddenChannelCache[channel.guild_id] && hiddenChannelCache[channel.guild_id].indexOf(channelId) > -1;
@@ -513,9 +593,9 @@ module.exports = (_ => {
 				};
 
 				let allowedRoles = [], allowedUsers = [], deniedRoles = [], deniedUsers = [], everyoneDenied = false;
-	
+
 				for (let id in channel.permissionOverwrites) {
-			
+
 					if ((channel.permissionOverwrites[id].type == overrideTypes.ROLE) && (guild.roles[id] && guild.roles[id].name != "@everyone") && checkAllowPerm(channel.permissionOverwrites[id].allow)) {
 						allowedRoles.push(Object.assign({ overwritten: myMember && myMember.roles.includes(id) && !allowed }, guild.roles[id]));
 					}
@@ -537,7 +617,7 @@ module.exports = (_ => {
 				for (let id in guild.roles) if ((guild.roles[id].permissions | BDFDB.DiscordConstants.Permissions.ADMINISTRATOR) == guild.roles[id].permissions && ![].concat(allowedRoles, deniedRoles).find(role => role && role.id == id)) allowedRoles.push(Object.assign({ overwritten: myMember && myMember.roles.includes(id) && !allowed }, guild.roles[id]));
 				if (allowed && !everyoneDenied) allowedRoles.push({ name: "@everyone" });
 
-				let allowedElements = [], deniedElements = [];			
+				let allowedElements = [], deniedElements = [];
 				for (let role of allowedRoles) allowedElements.push(BDFDB.ReactUtils.createElement(RoleRowComponent, { role: role, guildId: guild.id, channelId: channel.id }));
 				for (let user of allowedUsers) allowedElements.push(BDFDB.ReactUtils.createElement(UserRowComponent, { user: user, guildId: guild.id, channelId: channel.id }));
 				for (let role of deniedRoles) deniedElements.push(BDFDB.ReactUtils.createElement(RoleRowComponent, { role: role, guildId: guild.id, channelId: channel.id }));
