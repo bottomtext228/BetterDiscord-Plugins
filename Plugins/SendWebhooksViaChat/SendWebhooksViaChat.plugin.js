@@ -1,6 +1,6 @@
 /**
  * @name SendWebhooksViaChat
- * @version 2.0.0
+ * @version 2.0.1
  * @description Sends webhook messages via Discord chat.
  * @author bottom_text | Z-Team
  * @source https://github.com/bottomtext228/BetterDiscord-Plugins/tree/main/Plugins/SendWebhooksViaChat
@@ -20,32 +20,32 @@ module.exports = class SendWebhooksViaChat {
     start() {
 
         this.findWebpacks();
-    
+
         this.loadSettings();
 
-    
+
         // get webhooks data
         this.settings.webhooks.forEach(async webhook => {
             if (!webhook.url) {
                 return;
-            } 
+            }
             const data = await this.fetchWebhookData(webhook.url);
-            
-            if (!data) { 
-                BdApi.showToast('Error while getting webhook data!', {type: 'danger'});
+
+            if (!data) {
+                BdApi.showToast('Error while getting webhook data!', { type: 'danger' });
                 return;
             }
 
             if (data.code == 50027) { // if no webhook found
                 // delete webhook 
-                this.deleteWebhook(webhook);         
-                BdApi.showToast('Webhook was not found! It will be deleted.', {type: 'warning'});
+                this.deleteWebhook(webhook);
+                BdApi.showToast('Webhook was not found! It will be deleted.', { type: 'warning' });
                 return;
             }
 
             webhook.default_username = data.name;
             webhook.default_avatar_url = data.avatar ? `https://cdn.discordapp.com/avatars/${data.id}/${data.avatar}.webp?size=128` : this.avatarUtils.getDefaultAvatarURL();
-            
+
         });
 
 
@@ -67,11 +67,11 @@ module.exports = class SendWebhooksViaChat {
                             content: content,
                             username: webhook.username,
                             avatar_url: webhook.avatar_url
-                        }).then(response => {                     
-                            if (response.status == 204) {
-                                BdApi.showToast('Webhook message succefully sended!', {type: 'success', timeout: 1000});
-                            } else {                              
-                                BdApi.showToast(`Error during webhook request!\n${response.body}`, {type: 'error', timeout: 5000});                            
+                        }).then(response => {
+                            if (response && response.status == 204) {
+                                BdApi.showToast('Webhook message succefully sended!', { type: 'success', timeout: 1000 });
+                            } else {
+                                BdApi.showToast(`Error during webhook request!\n${response ? response.body : 'No response.'}`, { type: 'error', timeout: 5000 });
                             }
                         });
                         return; // prevent sending the message
@@ -82,8 +82,8 @@ module.exports = class SendWebhooksViaChat {
 
         );
 
-  
-        
+
+
         // TODO: send files, pictures, etc?
 
         /* 
@@ -147,7 +147,7 @@ module.exports = class SendWebhooksViaChat {
 
     getSettingsPanel() {
         // simple menu (kill me)
- 
+
         const html = this.parseHTML('<div></div>');
 
         const webhooksList = this.parseHTML(`<div id="webhooks_list"></div>`);
@@ -155,7 +155,7 @@ module.exports = class SendWebhooksViaChat {
 
         html.appendChild(this.createButton('Add new', () => {
 
-            this.settings.webhooks.push({ url: '', command: '', avatar_url: '', username: '', default_avatar_url: this.avatarUtils.getDefaultAvatarURL(), default_username: 'None'});
+            this.settings.webhooks.push({ url: '', command: '', avatar_url: '', username: '', default_avatar_url: this.avatarUtils.getDefaultAvatarURL(), default_username: 'None' });
             const webhook = this.settings.webhooks[this.settings.webhooks.length - 1];
             const webhookElement = this.renderWebhook(webhook);
             webhooksList.appendChild(webhookElement);
@@ -235,8 +235,8 @@ module.exports = class SendWebhooksViaChat {
                         webhook.default_avatar_url = data.avatar ? `https://cdn.discordapp.com/avatars/${data.id}/${data.avatar}.webp?size=128` : this.avatarUtils.getDefaultAvatarURL();
                         const elements = Array.from(webhookElement.querySelectorAll('span, img'));
 
-                        elements.find(e => e.id == 'webhook_username').innerText = webhook.username ? webhook.username : webhook.default_username;                        
-                        elements.find(e => e.id == 'webhook_command').innerText = webhook.command ? '/' + webhook.command : '';                                                        
+                        elements.find(e => e.id == 'webhook_username').innerText = webhook.username ? webhook.username : webhook.default_username;
+                        elements.find(e => e.id == 'webhook_command').innerText = webhook.command ? '/' + webhook.command : '';
                         elements.find(e => e.id == 'webhook_avatar_url').src = webhook.avatar_url ? webhook.avatar_url : webhook.default_avatar_url;
                         BdApi.showToast('Webhook saved!', { type: 'success' });
                         this.saveSettings();
@@ -249,7 +249,7 @@ module.exports = class SendWebhooksViaChat {
                 },
                 onCancel: () => {
                     webhookElement.innerHTML = ''; // visually delete it
-                    this.deleteWebhook(webhook);               
+                    this.deleteWebhook(webhook);
                 }
             });
         })
@@ -282,17 +282,17 @@ module.exports = class SendWebhooksViaChat {
         // note: settings cached by BdApi, so if you want to manipulate settings
         // by editing the config in manual you should restart discord
         try {
-            this.settings = BdApi.loadData(this.name, 'settings'); 
+            this.settings = BdApi.loadData(this.name, 'settings');
             if (!this.settings || !Array.isArray(this.settings.webhooks)) { // load defaults
                 this.settings = { webhooks: [] };
                 this.saveSettings();
-            };   
+            };
         } catch (error) {
-            require('fs').writeFileSync(require('path').join(BdApi.Plugins.folder, `${this.name}.config.json`), 
-            JSON.stringify({settings: {webhooks: []}})); // BdApi.save/loadData can't work with empty files
+            require('fs').writeFileSync(require('path').join(BdApi.Plugins.folder, `${this.name}.config.json`),
+                JSON.stringify({ settings: { webhooks: [] } })); // BdApi.save/loadData can't work with empty files
             this.settings = { webhooks: [] };
-            this.saveSettings();        
-        }   
+            this.saveSettings();
+        }
     }
 
     wrapElement(element) {
