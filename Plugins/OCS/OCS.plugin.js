@@ -1,6 +1,6 @@
 /**
  * @name OCS
- * @version 2.1.6
+ * @version 2.1.7
  * @description Orpheus Containment System.
  * @author bottom_text | Z-Team
 */
@@ -24,6 +24,7 @@ module.exports = class OCS {
 		if (!this.checkLibraries(libraries)) {
 			return;
 		}
+
 
 		this.findWebPacks();
 
@@ -56,6 +57,7 @@ module.exports = class OCS {
 			(_, args, original) => this.onComponentDispatchDispatchEvent(args, original)
 		); // хук для отключения тряски приложения
 
+		//TODO: Fix menu avatars
 
 	}
 
@@ -213,13 +215,27 @@ module.exports = class OCS {
 	}
 
 
-    createButton(label, callback, id) {
-        const ret = this.parseHTML(`<button type="button" class="${this.ButtonConstansts.button} ${this.ButtonConstansts.lookFilled} ${this.ButtonConstansts.colorBrand} ${this.ButtonConstansts.sizeSmall} ${this.ButtonConstansts.grow}" ${(id ? 'id="' + id + '"' : '')}><div class="contents-3ca1mk">${label}</div></button>`);
-        if (callback) {
-            ret.addEventListener('click', callback);
-        }
-        return ret;
-    }
+	createButton(label, callback, id) {
+		const ret = this.parseHTML(`<button type="button" class="${this.ButtonConstansts.button} ${this.ButtonConstansts.lookFilled} ${this.ButtonConstansts.colorBrand} ${this.ButtonConstansts.sizeSmall} ${this.ButtonConstansts.grow}" ${(id ? 'id="' + id + '"' : '')}><div class="contents-3ca1mk">${label}</div></button>`);
+		if (callback) {
+			ret.addEventListener('click', callback);
+		}
+		return ret;
+	}
+
+	createInput(label, id, callback) {
+		const ret = this.parseHTML(
+			`<div class="${this.InputConstants.container} ${this.InputConstants.medium}">
+				<div class="${this.InputConstants.inner}">
+					<input type="text" class="${this.InputConstants.input}" name="message" placeholder="${label}" id="${id}"/>
+				</div>
+			</div>`
+		);
+		if (callback) {
+			ret.addEventListener('input', callback);
+		}
+		return ret;
+	}
 	parseHTML(html) {
 		// TODO: drop this func, it's 75% slower than just making the elements manually
 		var template = document.createElement('template');
@@ -244,7 +260,11 @@ module.exports = class OCS {
 		this.GetMembersWebPack = ZeresPluginLibrary.WebpackModules.getByProps('getMembers');
 		this.MessageQueueWebPack = ZeresPluginLibrary.WebpackModules.getByProps('enqueue');
 		this.MessageUtilitiesWebPack = ZeresPluginLibrary.WebpackModules.getByProps('deleteMessage');
-		this.ButtonConstansts = BdApi.findModuleByProps('lookBlank');
+		this.ButtonConstansts = ZeresPluginLibrary.WebpackModules.getByProps('lookBlank');
+
+		this.UserTagConstants = { ...ZeresPluginLibrary.WebpackModules.getByProps('userTagUsernameNoNickname'), ...ZeresPluginLibrary.WebpackModules.getByProps('defaultColor') };
+		this.InputConstants = { ...ZeresPluginLibrary.WebpackModules.getByProps('input', 'icon', 'close', 'pointer') }
+
 	}
 
 
@@ -269,36 +289,28 @@ module.exports = class OCS {
 
 		const html = ZeresPluginLibrary.DOMTools.createElement(menuHTML);
 
+
 		const buttons = Array.from(html.querySelectorAll('button'));
+
 		buttons.find(button => button.id == 'add_button').addEventListener('click', () => {
 
 			const elements = [];
 
 			const userToAdd = this.parseHTML(`<div id="usertoadd"></div>`);
-			const input_id = this.parseHTML(
-				`<div class="container-2oNtJn medium-2NClDM">
-					<div class="inner-2pOSmK">
-						<input type="text" class="input-2m5SfJ" name="message" placeholder="${this.labels.input_id}" id='input_id' />
-					</div>
-				</div>`
-			);
-			const input_name = this.parseHTML(
-				`<div class="container-2oNtJn medium-2NClDM">			
-					<div class="inner-2pOSmK">
-						<input type="text" class="input-2m5SfJ" name="message" placeholder="${this.labels.input_name}" id='input_name' />
-					</div>
-				</div>`
-			);
-
-			input_id.addEventListener('input', () => {
+			const input_id = this.createInput(this.labels.input_id, 'input_id', () => {
 				const userIdToFind = document.getElementById('input_id').value.trim();
 				if (userIdToFind == '')
 					return;
 				const user = this.getUser(userIdToFind)
-				this.renderUserToAdd(user);
+				if (user) {
+					this.renderUserToAdd(user);
+				}
 			});
+
+
 			const membersTable = this.parseHTML(`<table id="findObjects"></table>`);
-			input_name.addEventListener('input', () => {
+
+			const input_name = this.createInput(this.labels.input_name, 'input_name', () => {
 
 				const usernameToFind = document.getElementById('input_name').value.trim();
 
@@ -314,6 +326,8 @@ module.exports = class OCS {
 				}
 
 			});
+
+		
 			const padding = this.parseHTML(`<pre>&nbsp</pre>`);
 
 			elements.push(userToAdd);
@@ -336,26 +350,17 @@ module.exports = class OCS {
 		}
 
 
+
 		for (const guildId in this.getGuilds()) { // get all users. We can do it by get all users of all guilds we are in 
 			const members = this.getMembers(guildId);
-
-			for (var membersIterator = 0; membersIterator < members.length; membersIterator++) {
-				const member = this.getUser(members[membersIterator].userId)
-				var wasAdded = false; // some members can be founded in different guilds for obvious reason
-				for (var membersIterator = 0; membersIterator < this.members.length; membersIterator++) {
-					const currentMember = this.members[membersIterator];
-					if (member.username.toLowerCase() == currentMember.username.toLowerCase()) {
-						wasAdded = true;
-						break;
-					}
+			for (const member of members) {
+				if (!this.members.some(e => e.id == member.userId)) {
+					this.members.push(this.getUser(member.userId));
 				}
-				if (!wasAdded) {
-					this.members.push(member);
-				}
-
+				
 			}
+	
 		}
-
 
 		const input_find = this.parseHTML(`<input type="text" class="input-2m5SfJ" name="message" placeholder="${this.labels.input_find}" id='input_find'/>`);
 
@@ -408,14 +413,14 @@ module.exports = class OCS {
 
 		const popoutHTML =
 			`<div>	
-				<div id="containedUser">
+				<div id="containedUser" style="margin-top: 10px">
 					<div style="display: flex; justify-content: left;">
 						<img style="height: 32px; height: 32px; border-radius: 50%;" src="{{avatar_url}}">			
 						<div style="margin-left: 10px; margin-top: 5px">
-							<span class="userTagUsernameNoNickname-2e_xaO" aria-expanded="false" role="button" tabindex="0">
+							<span class="${this.UserTagConstants.defaultColor}" aria-expanded="false" role="button" tabindex="0">
 								{{username}}
 							</span>
-							<span class="discrimBase-KriZSj">
+							<span class="${this.UserTagConstants.discrimBase}">
 								{{discriminator}}
 							</span>
 						</div>
@@ -448,20 +453,7 @@ module.exports = class OCS {
 		}
 		elem.addEventListener('click', () => {
 			const elements = [];
-			const reactionsInput = this.parseHTML(
-				`<div class="container-2oNtJn medium-2NClDM">			
-						<div class="inner-2pOSmK">
-							<input type="text" class="input-2m5SfJ" name="message" placeholder="${this.labels.input_reactions}" id="input_reactions"/>
-						</div>
-					</div>`
-			);
-
-			const emojies = this.parseHTML(
-				`<table id="emojiesToAdd">
-				</table>`
-			)
-			reactionsInput.querySelector('input').value = currentObject.reactions.join(' ');
-			reactionsInput.addEventListener('input', () => {
+			const reactionsInput = this.createInput(this.labels.input_reactions, 'input_reactions', () => {
 				const value = document.getElementById('input_reactions').value.trim();
 				const table = document.getElementById('emojiesToAdd');
 				table.innerHTML = '';
@@ -475,6 +467,14 @@ module.exports = class OCS {
 				});
 				emojies.append(row);
 			});
+
+			const emojies = this.parseHTML(
+				`<table id="emojiesToAdd">
+				</table>`
+			)
+
+			reactionsInput.querySelector('input').value = currentObject.reactions.join(' ');
+
 			const row = document.createElement('tr');
 			row.style.display = 'inline-flex';
 			currentObject.reactions.forEach(reaction => {
@@ -579,14 +579,14 @@ module.exports = class OCS {
 	}
 	renderUser(user) {
 		const popoutHTML =
-		`<div>
+			`<div>
 			<div style="margin-top: 10px; margin-bottom: 10px; display: flex; justify-content: left;">
 				<img style="height: 32px; height: 32px; border-radius: 50%;" src="{{avatar_url}}">			
 				<span style="margin-left: 10px; margin-top: 5px">
-					<span class="userTagUsernameNoNickname-2e_xaO" aria-expanded="false" role="button" tabindex="0">
+					<span class="${this.UserTagConstants.defaultColor}" aria-expanded="false" role="button" tabindex="0">
 						{{username}}
 					</span>
-					<span class="discrimBase-KriZSj">
+					<span class="${this.UserTagConstants.discrimBase}">
 						{{discriminator}}
 					</span>
 					</span>
