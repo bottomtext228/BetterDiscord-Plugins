@@ -62,7 +62,6 @@ module.exports = (_ => {
             }
             // right click on text input
             onTextAreaContextMenu(e) {
-                console.log(e);
                 if (!e.instance.props.editor) {
                     return;
                 }
