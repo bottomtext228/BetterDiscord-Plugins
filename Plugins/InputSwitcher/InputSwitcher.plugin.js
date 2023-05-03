@@ -1,6 +1,6 @@
 /**
  * @name InputSwitcher
- * @version 1.2.2
+ * @version 1.2.3
  * @author bottom_text | Z-Team 
  * @description Switches the keyboard layout(RU & EN)/case of the message.
  * @source https://github.com/bottomtext228/BetterDiscord-Plugins/tree/main/Plugins/InputSwitcher
@@ -58,7 +58,7 @@ module.exports = (_ => {
             onStart() {
                 this.UserStore = BdApi.findModuleByProps('getUser', 'getCurrentUser');
                 this.MessageActions = BdApi.findModuleByProps('editMessage');
-            
+                this.UserTagConstants = { ...ZeresPluginLibrary.WebpackModules.getByProps('userTagUsernameNoNickname'), ...ZeresPluginLibrary.WebpackModules.getByProps('defaultColor')};
             }
             // right click on text input
             onTextAreaContextMenu(e) {
@@ -170,16 +170,16 @@ module.exports = (_ => {
                 return this.UserStore.getUser(id);
             }
 
-            createMessagePopUp(message) {
+            createMessagePopUp(message) {                
                 const popoutHTML =
 		            `<div>
                         <div style="margin-bottom: 10px; display: flex; justify-content: left;">
                             <img style="height: 32px; height: 32px; border-radius: 50%;" src="${message.author.getAvatarURL()}">			
                             <span style="margin-left: 10px; margin-top: 5px">
-                                <span class="userTagUsernameNoNickname-2e_xaO" aria-expanded="false" role="button" tabindex="0">
+                                <span class="${this.UserTagConstants.defaultColor}" aria-expanded="false" role="button" tabindex="0">
                                     ${message.author.username}
                                 </span>
-                                <span class="discrimBase-KriZSj">
+                                <span class="${this.UserTagConstants.discrimBase}">
                                     #${message.author.discriminator}
                                 </span>
                             </span>
@@ -189,9 +189,13 @@ module.exports = (_ => {
                         <span>   	
 		            </div>`;
 
+                /*    
                 BDFDB.ModalUtils.open(this, {
                     children: [BDFDB.ReactUtils.elementToReact(BDFDB.DOMUtils.create(popoutHTML))],
-                });
+                }); // this somehow gives cross-origin error sometimes
+                */ 
+       
+               BdApi.showConfirmationModal(this.name, BDFDB.ReactUtils.elementToReact(BDFDB.DOMUtils.create(popoutHTML)), {cancelText: ''});
             }
 
             swapCase(message) {
