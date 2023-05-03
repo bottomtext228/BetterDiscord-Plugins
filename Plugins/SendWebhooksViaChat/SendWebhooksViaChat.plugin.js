@@ -1,6 +1,6 @@
 /**
  * @name SendWebhooksViaChat
- * @version 2.0.1
+ * @version 2.0.2
  * @description Sends webhook messages via Discord chat.
  * @author bottom_text | Z-Team
  * @source https://github.com/bottomtext228/BetterDiscord-Plugins/tree/main/Plugins/SendWebhooksViaChat
@@ -65,7 +65,7 @@ module.exports = class SendWebhooksViaChat {
                         const content = this.prepareMessageToSend(messageToSend);
                         this.makeRequest(webhook.url, {
                             content: content,
-                            username: webhook.username,
+                            username: webhook.username ? webhook.username : undefined,
                             avatar_url: webhook.avatar_url
                         }).then(response => {
                             if (response && response.status == 204) {
