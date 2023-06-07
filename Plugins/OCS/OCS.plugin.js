@@ -1,8 +1,10 @@
 /**
  * @name OCS
- * @version 2.1.7
+ * @version 2.2.7
  * @description Orpheus Containment System.
  * @author bottom_text | Z-Team
+ * @source https://github.com/bottomtext228/BetterDiscord-Plugins/tree/main/Plugins/OCS
+ * @updateUrl https://raw.githubusercontent.com/bottomtext228/BetterDiscord-Plugins/main/Plugins/OCS/OCS.plugin.js
 */
 
 
@@ -25,18 +27,23 @@ module.exports = class OCS {
 			return;
 		}
 
+		console.log(`${this.name}: started!`);
 
 		this.findWebPacks();
 
-		this.members = [];
-		this.fs = require('fs');
-		this.path = require('path');
-		this.configPath = this.getConfigPath();
-		this.containedObjects = this.loadSettings();
+		this.loadSettings();
 		this.labels = this.setLabelsByLanguage();
 		this.sendedMessages = [];
 
-		console.log(`${this.name}: started!`);
+		this.emojiType = {
+			unicode: 0,
+			custom: 1
+		};
+
+		this.containingMethod = {
+			reactions: 0,
+			message: 1
+		}
 
 
 		/* 90% of the code is old and pretty bad (settings menu). I won't rewrite it. :trolling: */
@@ -52,12 +59,11 @@ module.exports = class OCS {
 
 		BdApi.Patcher.instead(
 			this.name,
-			this.ComponentDispatchWebpack, // ...
+			this.ComponentDispatchWebpack, 
 			'dispatch',
 			(_, args, original) => this.onComponentDispatchDispatchEvent(args, original)
 		); // хук для отключения тряски приложения
 
-		//TODO: Fix menu avatars
 
 	}
 
@@ -69,7 +75,7 @@ module.exports = class OCS {
 		if (dispatch.type == 'MESSAGE_CREATE') {
 
 			const isLocalUser = dispatch.message.author.id == this.getCurrentUser().id;
-			const currentObject = this.containedObjects.find(object => {
+			const currentObject = this.containedObjects.find(object => { // HERE
 				if (object.id == dispatch.message.author.id) {
 					if (isLocalUser) {
 						if (dispatch.optimistic) { // избегаем спама при работе на локального пользователя
@@ -81,16 +87,26 @@ module.exports = class OCS {
 			})
 			if (currentObject) {
 
-				if (currentObject.method == 'reactions') {
-					currentObject.reactions.forEach(reaction => {
-						this.sendReaction(dispatch.message.channel_id, dispatch.message.id, reaction);
-					});
-				} else if (currentObject.method == 'message') {
+				if (currentObject.method == this.containingMethod.reactions) {
+					const sendAsync = async () => {
+						const wait = (ms) => {
+							return new Promise((resolve, reject) => {
+								setTimeout(resolve, ms);
+							})
+						}
+						for (const reaction of currentObject.reactions) {
+							this.sendReaction(dispatch.message.channel_id, dispatch.message.id, reaction);
+							await wait(100);
+						}
+					}
+					sendAsync();
+				} else if (currentObject.method == this.containingMethod.message) {
 					var message = '';
 					currentObject.reactions.forEach(reaction => {
-						message += this.prepareEmojiToSend(reaction, true);
+						message += this.prepareEmojiToSend(reaction, true) + ' ';
 					});
-					if (!isLocalUser || message != dispatch.message.content) { // избегаем "рекурсии" при работе на локального пользователя
+
+					if (!isLocalUser || !this.sendedMessages.some(e => e.messageId == dispatch.message.id)) { // избегаем "рекурсии" при работе на локального пользователя
 						this.sendMessage(dispatch.message.channel_id, message, (response) => {
 							if (response.ok) {
 								if (this.sendedMessages.length >= 75) { // MAX_SIZE. Prevent memory leaks
@@ -103,6 +119,7 @@ module.exports = class OCS {
 									repliedMessageId: dispatch.message.id,
 									channelId: dispatch.message.channel_id
 								});
+
 							}
 						});
 					}
@@ -121,16 +138,6 @@ module.exports = class OCS {
 			}
 		}
 
-	}
-
-
-
-	saveSettings() {
-		this.fs.writeFileSync(this.configPath, JSON.stringify(this.containedObjects));
-	}
-
-	getConfigPath() {
-		return this.path.join(BdApi.Plugins.folder, `${this.name}.config.json`);
 	}
 
 	sendMessage(channelId, content, responseCallback) {
@@ -160,7 +167,7 @@ module.exports = class OCS {
 	}
 
 	getCurrentUser() {
-		return this.GetCurrentUserWebPack.getCurrentUser();
+		return this.GetUserWebPack.getCurrentUser();
 	}
 
 	getUser(id) {
@@ -178,21 +185,24 @@ module.exports = class OCS {
 		}
 	}
 
-	sendReaction(channelId, messageId, emojiName) {
-		const emoji = this.prepareEmojiToSend(emojiName);
-		this.ReactionUtilities.rU(channelId, messageId, emoji, undefined, { burst: false })
+	sendReaction(channelId, messageId, emoji) {
+		this.ReactionUtilities.rU(channelId, messageId, this.prepareEmojiToSend(emoji), undefined, { burst: false });
 	}
 
-	prepareEmojiToSend(emojiName, toString = false) { // tostring - bool. false - return object for addReaction, true - return string for message
-		const emoji = this.GetByNameEmojieWebPack.getByName(emojiName);
-		if (emoji) {
-			return toString ? emoji.surrogates : {
-				id: emoji.id == undefined ? null : emoji.id,
-				name: emoji.surrogates,
-				animated: emoji.animated,
+	prepareEmojiToSend(emoji, toString = false) { // tostring - bool. false - return object for addReaction, true - return string for message
+
+		if (emoji.type == this.emojiType.unicode) {
+			const unicodeEmoji = this.GetByNameemojiWebPack.getByName(emoji.name);
+			if (unicodeEmoji) {
+				return toString ? unicodeEmoji.surrogates : {
+					id: unicodeEmoji.id == undefined ? null : unicodeEmoji.id,
+					name: unicodeEmoji.surrogates,
+					animated: unicodeEmoji.animated,
+				}
 			}
-		} else {
-			const customEmoji = this.getCustomEmoji(emojiName);
+		}
+		else {
+			const customEmoji = this.getCustomEmojiById(emoji.id);
 			if (customEmoji) {
 				return toString ? `<:${customEmoji.name}:${customEmoji.id}>` : {
 					id: customEmoji.id == undefined ? null : customEmoji.id,
@@ -204,16 +214,9 @@ module.exports = class OCS {
 		return '';
 	}
 
-	getCustomEmoji(customEmojiName) {
-		for (const guildId in this.getGuilds()) {
-			const guildEmojiArray = this.GuildUtilities.getGuildEmoji(guildId); // получаем массив со всеми объектами кастомных эмодзи
-			const customEmoji = guildEmojiArray.find(guildEmoji => guildEmoji.name == customEmojiName); // находим нужный
-			if (customEmoji) {
-				return customEmoji;
-			}
-		}
+	getCustomEmojiById(customEmojiId) {
+		return this.GuildUtilities.getCustomEmojiById(customEmojiId);
 	}
-
 
 	createButton(label, callback, id) {
 		const ret = this.parseHTML(`<button type="button" class="${this.ButtonConstansts.button} ${this.ButtonConstansts.lookFilled} ${this.ButtonConstansts.colorBrand} ${this.ButtonConstansts.sizeSmall} ${this.ButtonConstansts.grow}" ${(id ? 'id="' + id + '"' : '')}><div class="contents-3ca1mk">${label}</div></button>`);
@@ -236,8 +239,8 @@ module.exports = class OCS {
 		}
 		return ret;
 	}
+
 	parseHTML(html) {
-		// TODO: drop this func, it's 75% slower than just making the elements manually
 		var template = document.createElement('template');
 		html = html.trim(); // Never return a text node of whitespace as the result
 		template.innerHTML = html;
@@ -247,17 +250,18 @@ module.exports = class OCS {
 	findWebPacks() {
 
 		/* зачем все эти приколы с эмодзи помещать в разные модули??? */
+
+
 		this.ReactionUtilities = ZeresPluginLibrary.WebpackModules.getByProps('rU', 'wX'); // ...
 		this.EmojiUtilitiesWebpack = ZeresPluginLibrary.WebpackModules.getByProps('getURL');
 		this.GuildUtilities = ZeresPluginLibrary.WebpackModules.getByProps('getGuildEmoji');
-		this.GetByNameEmojieWebPack = ZeresPluginLibrary.WebpackModules.getByProps('getByName');
+		this.GetByNameemojiWebPack = ZeresPluginLibrary.WebpackModules.getByProps('getByName');
 
 		this.ComponentDispatchWebpack = ZeresPluginLibrary.WebpackModules.getByProps('S', 'b').S // ...
 		this.DispatchWebPack = ZeresPluginLibrary.WebpackModules.find(e => e.dispatch && !e.getCurrentUser);
-		this.GetUserWebPack = ZeresPluginLibrary.WebpackModules.getByProps('getUser');
-		this.GetCurrentUserWebPack = ZeresPluginLibrary.WebpackModules.getByProps('getCurrentUser');
-		this.GetGuildWebPack = ZeresPluginLibrary.WebpackModules.getByProps('getGuild');
+		this.GetGuildWebPack = ZeresPluginLibrary.WebpackModules.getByProps('getGuild', 'getGuildCount');
 		this.GetMembersWebPack = ZeresPluginLibrary.WebpackModules.getByProps('getMembers');
+		this.GetUserWebPack = ZeresPluginLibrary.WebpackModules.getByProps('getUser', 'getCurrentUser');
 		this.MessageQueueWebPack = ZeresPluginLibrary.WebpackModules.getByProps('enqueue');
 		this.MessageUtilitiesWebPack = ZeresPluginLibrary.WebpackModules.getByProps('deleteMessage');
 		this.ButtonConstansts = ZeresPluginLibrary.WebpackModules.getByProps('lookBlank');
@@ -266,8 +270,6 @@ module.exports = class OCS {
 		this.InputConstants = { ...ZeresPluginLibrary.WebpackModules.getByProps('input', 'icon', 'close', 'pointer') }
 
 	}
-
-
 
 	getSettingsPanel() {
 
@@ -279,13 +281,14 @@ module.exports = class OCS {
 				<div class="contents-3ca1mk">${this.labels.add_button}</div>
 			</button>
 					
-			<pre>&nbsp</pre>
-
-			<div id="containedObjects"> 
+			<div id="containedObjects" style="margin-top: 16px"> 
 			</div>
 			
 		</div>`
 
+
+		const allUsers = [];
+		this.allEmojis = [];
 
 		const html = ZeresPluginLibrary.DOMTools.createElement(menuHTML);
 
@@ -317,8 +320,8 @@ module.exports = class OCS {
 				if (usernameToFind == '')
 					return;
 				membersTable.innerHTML = '';
-				for (var membersIterator = 0; membersIterator < this.members.length; membersIterator++) {
-					const member = this.members[membersIterator];
+				for (var membersIterator = 0; membersIterator < allUsers.length; membersIterator++) {
+					const member = allUsers[membersIterator];
 
 					if (member.username.toLowerCase().search(usernameToFind.toLowerCase()) != -1) {
 						this.renderUserToAdd(member);
@@ -327,7 +330,7 @@ module.exports = class OCS {
 
 			});
 
-		
+
 			const padding = this.parseHTML(`<pre>&nbsp</pre>`);
 
 			elements.push(userToAdd);
@@ -344,8 +347,8 @@ module.exports = class OCS {
 
 		});
 
-		// так как конфиг работает на костылях и 1 элемент в нём всегда пустой
-		for (var objectIterator = 1; objectIterator < this.containedObjects.length; objectIterator++) {
+
+		for (let objectIterator in this.containedObjects) {
 			this.renderContainedObject(objectIterator, html)
 		}
 
@@ -354,34 +357,18 @@ module.exports = class OCS {
 		for (const guildId in this.getGuilds()) { // get all users. We can do it by get all users of all guilds we are in 
 			const members = this.getMembers(guildId);
 			for (const member of members) {
-				if (!this.members.some(e => e.id == member.userId)) {
-					this.members.push(this.getUser(member.userId));
-				}
-				
-			}
-	
-		}
+				if (!allUsers.some(e => e && e.id == member.userId)) {
+					const user = this.getUser(member.userId);
+					allUsers.push(user);
 
-		const input_find = this.parseHTML(`<input type="text" class="input-2m5SfJ" name="message" placeholder="${this.labels.input_find}" id='input_find'/>`);
-
-		const membersTable = document.createElement('table');
-		membersTable.id = 'members';
-		input_find.addEventListener('input', () => {
-			const usernameToFind = document.getElementById('input_find').value.trim();
-			if (usernameToFind != '') {
-				membersTable.innerHTML = '';
-				for (var membersIterator = 0; membersIterator < this.members.length; membersIterator++) {
-					const member = this.members[membersIterator];
-					if (member.username.toLowerCase().search(usernameToFind.toLowerCase()) != -1) {
-						const row = document.createElement('tr');
-						row.innerHTML = `<td coldspan ='2'>${member.username}</td>`
-						membersTable.append(row);
-					}
 				}
-			} else {
-				membersTable.innerHTML = '';
 			}
-		});
+			// get all guild emojis
+			this.allEmojis.push(...this.GuildUtilities.getGuildEmoji(guildId).map(e => { return { name: e.name, id: e.id, type: this.emojiType.custom } }));
+
+		} // get all unicode emojis
+		this.allEmojis.push(...this.GetByNameemojiWebPack.all().map(e => { return { name: e.uniqueName, type: this.emojiType.unicode } }));
+
 
 		if (this.sendedMessages.length > 0) {
 			const deleteButton =
@@ -427,75 +414,138 @@ module.exports = class OCS {
 					</div>
 				</div>
 				<div style="margin-left: 40px;">
-					<table id="emojies">
-					</table>
+					<div id="emojis" style="display: flex; flex-wrap: wrap; gap: 5px;">
+					</div>
 				</div>
 			</div>`;
 
 		const currentObject = this.containedObjects[objectIterator];
 
-		const user = this.getUser(currentObject.id)
+		const user = this.getUser(currentObject.id);
 
 		if (!user) {
 			return;
 		}
 
 		const elem = ZeresPluginLibrary.DOMTools.createElement(ZeresPluginLibrary.Utilities.formatString(popoutHTML,
-			{ username: user.username, discriminator: "#" + user.discriminator, avatar_url: user.getAvatarURL() }))
+			{ username: user.username, discriminator: "#" + user.discriminator, avatar_url: user.getAvatarURL() }));
 
-		const row = document.createElement('tr');
-		row.style.display = 'inline-flex';
-		for (var emojiesIterator = 0; emojiesIterator < currentObject.reactions.length; emojiesIterator++) {
-			row.innerHTML += `<td coldspan ='2'>${this.getReactionTextToDisplay(this.containedObjects[objectIterator].reactions[emojiesIterator])}</td>`;
 
-			elem.querySelector('table').append(row);
+		currentObject.reactions.forEach(reaction => {
+			Array.from(elem.querySelectorAll('div')).find(e => e.id == 'emojis').append(
+				this.parseHTML(`<div>${this.getReactionTextToDisplay(reaction)}</div>`)
+			)
+		});
 
-		}
-		elem.addEventListener('click', () => {
+		elem.addEventListener('click', () => { // object settings 
 			const elements = [];
-			const reactionsInput = this.createInput(this.labels.input_reactions, 'input_reactions', () => {
-				const value = document.getElementById('input_reactions').value.trim();
-				const table = document.getElementById('emojiesToAdd');
+			const currentObjectReactions = Object.assign([], currentObject.reactions);
+
+			const reactionsInput = this.createInput(this.labels.input_reactions, 'input_reactions', (e) => {
+				
+				const value = document.getElementById('input_reactions').value.trim(); // HERE
+				const table = document.getElementById('emojisToAdd');
 				table.innerHTML = '';
-				const row = document.createElement('tr');
-				row.style.display = 'inline-flex';
-				value.split(' ').forEach(reaction => {
+			
+				currentObjectReactions.forEach(reaction => { // HERE
 					const textToDisplay = this.getReactionTextToDisplay(reaction);
 					if (textToDisplay != '') {
-						row.innerHTML += `<td coldspan ='2'>${textToDisplay}</td>`;
+						const reactionElement = this.parseHTML(`<div>${this.getReactionTextToDisplay(reaction)}</div>`);
+						reactionElement.addEventListener('click', (e) => {
+							// delete 
+							e.target.parentElement.outerHTML = ''; // order is important or parentElement will be undefined
+							e.target.parentElement.innerHTML = '';
+
+							currentObjectReactions.splice(currentObjectReactions.indexOf(reaction), 1);
+					
+						})
+						emojis.append(reactionElement);
 					}
 				});
-				emojies.append(row);
+
+			
+				const emojisQueryList = document.getElementById('emojisQueryList');
+				emojisQueryList.innerHTML = '';
+
+
+				if (value.length > 1) {
+					for (const emoji of this.allEmojis) {
+						if (emoji.name.toLowerCase().search(value.toLowerCase()) != -1) {
+
+
+							const emojiQueryResult = this.parseHTML(
+							`<div style="height: 50px; margin-top: 10px; margin-bottom: 10px; display: flex; align-items: center;">						
+								<div style="width: 50px;">${this.getReactionTextToDisplay(emoji)}</div>
+								<div style="width: 100px; margin-left: 2%; color: white">:${emoji.name}:</div>
+								${emoji.type == this.emojiType.custom ? `<div style="color: grey; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; width: 100%; text-align: right;">${this.getGuild(this.getCustomEmojiById(emoji.id).guildId).name}</div>` : ''}
+							</div>`);
+	
+							emojiQueryResult.addEventListener('click', () => {
+
+								if (!currentObjectReactions.some(e => _.isEqual(e, emoji))) { // if not already added
+									currentObjectReactions.push(emoji);
+									const reactionElement = this.parseHTML(`<div>${this.getReactionTextToDisplay(emoji)}</div>`);
+									reactionElement.addEventListener('click', (e) => {
+										// delete reaction 
+
+										e.target.parentElement.outerHTML = ''; // order is important or parentElement will be undefined
+										e.target.parentElement.innerHTML = '';
+
+										currentObjectReactions.splice(currentObjectReactions.indexOf(emoji), 1);
+							
+									})
+									emojis.append(reactionElement);
+								}
+							})
+							emojisQueryList.append(emojiQueryResult);
+						}
+					}
+				}
+
+
+
 			});
 
-			const emojies = this.parseHTML(
-				`<table id="emojiesToAdd">
-				</table>`
+	
+			const emojis = this.parseHTML(
+				`<div id="emojisToAdd" style="display: flex; flex-wrap: wrap; gap: 5px; margin: 10px auto 10px;">
+				</div>`
 			)
 
-			reactionsInput.querySelector('input').value = currentObject.reactions.join(' ');
-
-			const row = document.createElement('tr');
-			row.style.display = 'inline-flex';
+			const emojisQueryList = this.parseHTML('<div id="emojisQueryList"></div>');
+	
 			currentObject.reactions.forEach(reaction => {
+
 
 				const textToDisplay = this.getReactionTextToDisplay(reaction);
 				if (textToDisplay != '') {
-					row.innerHTML += `<td coldspan ='2'>${textToDisplay}</td>`;
+					const reactionElement = this.parseHTML(`<div>${textToDisplay}</div>`);
+					reactionElement.addEventListener('click', (e) => {
+						// delete 
+						e.target.parentElement.outerHTML = ''; // order is important or parentElement will be undefined
+						e.target.parentElement.innerHTML = '';
+					
+						currentObjectReactions.splice(currentObjectReactions.indexOf(reaction), 1);
+		
+					})
+					emojis.append(reactionElement);
 				}
 			});
+
+
+
 			const containingMethodText = this.parseHTML(`<span style="color:#dddddd">${this.labels.containing_method_text}: </span>`);
 
 			const radioGroup = [
 				{
 					name: this.labels.containing_method_reactions,
-					value: 'reactions',
+					value: this.containingMethod.reactions,
 					desc: '',
 					color: '#DDDDDD'
 				},
 				{
 					name: this.labels.containing_method_message,
-					value: 'message',
+					value: this.containingMethod.message,
 					desc: '',
 					color: '#DDDDDD'
 				}
@@ -508,43 +558,48 @@ module.exports = class OCS {
 			elements.push(containingMethodText);
 			elements.push(containingMethodRadioGroup);
 
-			emojies.append(row);
+		
+			elements.push(emojis);
 
 			elements.push(reactionsInput);
-			elements.push(emojies);
+
+
+			elements.push(emojisQueryList);
+
 			ZeresPluginLibrary.Modals.showModal(this.labels.add_object_button, ZeresPluginLibrary.ReactTools.createWrappedElement(elements), {
 				confirmText: this.labels.delete_object,
 				cancelText: this.labels.save_settings,
 				size: ZeresPluginLibrary.Modals.ModalSizes.SMALL,
 				red: false,
-				onConfirm: e => {
+				onConfirm: e => { // delete object
 					this.containedObjects.splice(objectIterator, 1);
 					this.saveSettings();
 					elem.innerHTML = '';
 				},
-				onCancel: t => {
+				onCancel: t => { // save object
 					if (!currentObject) // was deleted
 						return;
-					const value = document.getElementById('input_reactions').value.trim();
-					elem.querySelector('table').innerHTML = '';
-					if (value != '') {
 
-						currentObject.reactions = [];
-						const reactions = value.split(' ');
-						const row = document.createElement('tr');
-						row.style.display = 'inline-flex';
+
+					const emojisList = Array.from(elem.querySelectorAll('div')).find(e => e.id == 'emojis');
+					emojisList.innerHTML = '';
+
+		
+					currentObject.reactions = [];
+					const reactions = currentObjectReactions;
+					if (reactions.length > 0) {
 						reactions.forEach(reaction => {
 							const textToDisplay = this.getReactionTextToDisplay(reaction);
-							if (textToDisplay != '') {
-								row.innerHTML += `<td coldspan ='2'>${textToDisplay}</td>`;
+							if (textToDisplay != '') {						
+								emojisList.append(
+									this.parseHTML(`<div>${this.getReactionTextToDisplay(reaction)}</div>`)
+								);
 								currentObject.reactions.push(reaction);
 							}
 						});
-						elem.querySelector('table').append(row);
-					} else {
-						currentObject.reactions = [];
-
+						
 					}
+
 					currentObject.method = containingMethod;
 					this.saveSettings();
 				}
@@ -564,19 +619,22 @@ module.exports = class OCS {
 	}
 
 	getReactionTextToDisplay(reaction) {
-		const emoji = this.GetByNameEmojieWebPack.getByName(reaction);
 		var textToDisplay = '';
-		if (emoji) {
-			textToDisplay = `<img aria-label="${emoji.surrogates}" src="${this.getEmojiUrl(emoji.surrogates)}" alt="${emoji.surrogates}" draggable="false" class="emoji jumboable" data-type="emoji" data-name=":${reaction}:"></img>`;
+		if (reaction.type == this.emojiType.unicode) {
+			const emoji = this.GetByNameemojiWebPack.getByName(reaction.name);
+			if (emoji) {
+				textToDisplay = `<img aria-label="${emoji.surrogates}" src="${this.getEmojiUrl(emoji.surrogates)}" alt="${emoji.surrogates}" draggable="false" class="emoji jumboable" data-type="emoji"></img>`;
+			}
 		}
 		else {
-			const customEmoji = this.getCustomEmoji(reaction);
+			const customEmoji = this.getCustomEmojiById(reaction.id);
 			if (customEmoji) {
-				textToDisplay = `<img aria-label=":${reaction}:" src=${customEmoji.url} alt=":${reaction}:" draggable="false" class="emoji jumboable" data-type="emoji" data-id="${customEmoji.id}"></img>`;
+				textToDisplay = `<img aria-label=":${customEmoji.name}:" src=${customEmoji.url} alt=":${customEmoji.name}:" draggable="false" class="emoji jumboable" data-type="emoji" data-id="${customEmoji.id}"></img>`;
 			}
 		}
 		return textToDisplay;
 	}
+
 	renderUser(user) {
 		const popoutHTML =
 			`<div>
@@ -601,6 +659,7 @@ module.exports = class OCS {
 		return elem;
 
 	}
+
 	renderUserToAdd(user) {
 		const element = this.renderUser(user);
 
@@ -614,8 +673,8 @@ module.exports = class OCS {
 				this.containedObjects.push({
 					'name': user.username,
 					'id': user.id,
-					'reactions': [],
-					'method': 'reactions'
+					'reactions': [], // HERE ?
+					'method': this.containingMethod.reactions
 				});
 				this.saveSettings();
 				document.getElementById('confirm_add_button').firstChild.textContent = this.labels.confirmed_add_button;
@@ -629,18 +688,14 @@ module.exports = class OCS {
 	}
 
 	loadSettings() {
-		if (!this.fs.existsSync(this.configPath)) {
-			this.fs.writeFileSync(this.configPath, JSON.stringify([{}])); // create empty config
+		this.containedObjects = BdApi.loadData(this.name, 'data');
+		if (!this.containedObjects) {
+			this.containedObjects = [];
 		}
-		var settings = [];
-		try {
-			settings = JSON.parse(this.fs.readFileSync(this.configPath));
-		}
-		catch {
-			this.fs.writeFileSync(this.configPath, JSON.stringify([{}])); // create empty config
-			settings = JSON.parse(this.fs.readFileSync(this.configPath));
-		}
-		return settings;
+	}
+
+	saveSettings() {	
+		BdApi.saveData(this.name, 'data', this.containedObjects);
 	}
 
 	setLabelsByLanguage() {
@@ -651,8 +706,7 @@ module.exports = class OCS {
 					input_id: 'Введите ID пользователя',
 					input_name: 'Введите имя пользователя',
 					add_object: 'Добавить объект',
-					input_find: 'Поиск по имени',
-					input_reactions: 'Введите эмодзи',
+					input_reactions: 'Поиск эмодзи',
 					containing_method_text: 'Способ сдерживания',
 					object_settings: 'Настройка объекта',
 					add_object_button: 'Добавить',
@@ -669,8 +723,7 @@ module.exports = class OCS {
 					input_id: 'Enter user ID',
 					input_name: 'Enter user name',
 					add_object: 'Add object',
-					input_find: 'Search by name',
-					input_reactions: 'Enter emojies',
+					input_reactions: 'Search emoji',
 					containing_method_text: 'Containing method',
 					object_settings: 'Object settings',
 					add_object_button: 'Add',
@@ -684,6 +737,7 @@ module.exports = class OCS {
 		}
 
 	}
+	
 	checkLibraries(libraries) {
 		const div = BdApi.React.createElement('div', {});
 		div.props.children = [];
@@ -714,6 +768,7 @@ module.exports = class OCS {
 		}
 		return true;
 	}
+
 	stop() {
 		console.log(`${this.name}: stopped!`);
 		BdApi.Patcher.unpatchAll(this.name);
