@@ -1,7 +1,7 @@
 /**
  * @name ShowHiddenChannelsRe
  * @author DevilBro + bottom_text | Z-Team
- * @version 1.0.1
+ * @version 1.0.2
  * @description Displays all hidden Channels, which can't be accessed due to Role Restrictions, this won't allow you to read them (impossible). Original plugin by DevilBro is taken down by himself due to BetterDiscord plugins rules. This is re-release version with fixes.
  * @updateUrl https://raw.githubusercontent.com/bottomtext228/BetterDiscord-Plugins/main/Plugins/ShowHiddenChannelsRe/ShowHiddenChannelsRe.plugin.js
  * @source https://github.com/bottomtext228/BetterDiscord-Plugins/tree/main/Plugins/ShowHiddenChannelsRe
@@ -14,7 +14,7 @@ module.exports = (_ => {
 		"info": {
 			"name": "ShowHiddenChannelsRe",
 			"author": "DevilBro + bottom_text | Z-Team",
-			"version": "1.0.1",
+			"version": "1.0.2",
 			"description": "Displays all hidden Channels, which can't be accessed due to Role Restrictions, this won't allow you to read them (impossible)"
 		}
 	};
@@ -101,10 +101,6 @@ module.exports = (_ => {
 
 		const UnreadChannelUtils = BdApi.findModuleByProps('isForumPostUnread');
 		const VoiceUtils = BdApi.findModuleByProps('getVoiceStateForUser');
-		const ChannelListStore = BdApi.findModuleByProps('getGuildWithoutChangingCommunityRows');
-		const DiscordConstants = BdApi.Webpack.getModule((m) => m?.Plq?.ADMINISTRATOR == 8n);
-
-				
 
 		const UserRowComponent = class UserRow extends BdApi.React.Component {
 			componentDidMount() {
