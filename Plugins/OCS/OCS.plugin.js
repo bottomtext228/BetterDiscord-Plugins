@@ -1,6 +1,6 @@
 /**
  * @name OCS
- * @version 2.2.7
+ * @version 2.2.8
  * @description Orpheus Containment System.
  * @author bottom_text | Z-Team
  * @source https://github.com/bottomtext228/BetterDiscord-Plugins/tree/main/Plugins/OCS
@@ -407,9 +407,6 @@ module.exports = class OCS {
 							<span class="${this.UserTagConstants.defaultColor}" aria-expanded="false" role="button" tabindex="0">
 								{{username}}
 							</span>
-							<span class="${this.UserTagConstants.discrimBase}">
-								{{discriminator}}
-							</span>
 						</div>
 					</div>
 				</div>
@@ -428,7 +425,7 @@ module.exports = class OCS {
 		}
 
 		const elem = ZeresPluginLibrary.DOMTools.createElement(ZeresPluginLibrary.Utilities.formatString(popoutHTML,
-			{ username: user.username, discriminator: "#" + user.discriminator, avatar_url: user.getAvatarURL() }));
+			{ username: user.username, avatar_url: user.getAvatarURL() }));
 
 
 		currentObject.reactions.forEach(reaction => {
@@ -644,9 +641,6 @@ module.exports = class OCS {
 					<span class="${this.UserTagConstants.defaultColor}" aria-expanded="false" role="button" tabindex="0">
 						{{username}}
 					</span>
-					<span class="${this.UserTagConstants.discrimBase}">
-						{{discriminator}}
-					</span>
 					</span>
 				<div id="confirmAdd" style="margin-right: 0px; margin-left: auto;"></div>
 			</div>		
@@ -655,7 +649,7 @@ module.exports = class OCS {
 
 
 		const elem = ZeresPluginLibrary.DOMTools.createElement(ZeresPluginLibrary.Utilities.formatString(popoutHTML,
-			{ username: user.username, discriminator: "#" + user.discriminator, avatar_url: user.getAvatarURL() }))
+			{ username: user.username, avatar_url: user.getAvatarURL() }))
 		return elem;
 
 	}
