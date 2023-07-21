@@ -1,7 +1,7 @@
 /**
  * @name ShowHiddenChannelsRe
  * @author DevilBro + bottom_text | Z-Team
- * @version 1.0.2
+ * @version 1.0.3
  * @description Displays all hidden Channels, which can't be accessed due to Role Restrictions, this won't allow you to read them (impossible). Original plugin by DevilBro is taken down by himself due to BetterDiscord plugins rules. This is re-release version with fixes.
  * @updateUrl https://raw.githubusercontent.com/bottomtext228/BetterDiscord-Plugins/main/Plugins/ShowHiddenChannelsRe/ShowHiddenChannelsRe.plugin.js
  * @source https://github.com/bottomtext228/BetterDiscord-Plugins/tree/main/Plugins/ShowHiddenChannelsRe
@@ -14,7 +14,7 @@ module.exports = (_ => {
 		"info": {
 			"name": "ShowHiddenChannelsRe",
 			"author": "DevilBro + bottom_text | Z-Team",
-			"version": "1.0.2",
+			"version": "1.0.3",
 			"description": "Displays all hidden Channels, which can't be accessed due to Role Restrictions, this won't allow you to read them (impossible)"
 		}
 	};
@@ -101,6 +101,8 @@ module.exports = (_ => {
 
 		const UnreadChannelUtils = BdApi.findModuleByProps('isForumPostUnread');
 		const VoiceUtils = BdApi.findModuleByProps('getVoiceStateForUser');
+		const ChannelClasses = {...BdApi.findModuleByProps('channelEmoji', 'link', 'wrapper'), ...BdApi.findModuleByProps('containter', 'dropdownButton', 'tooltip')};
+
 
 		const UserRowComponent = class UserRow extends BdApi.React.Component {
 			componentDidMount() {
@@ -237,7 +239,6 @@ module.exports = (_ => {
 				});
 
 			
-
 				BDFDB.PatchUtils.patch(this, UnreadChannelUtils, "getMentionCount", {
 					after: e => {
 						return e.returnValue ? (this.isChannelHidden(e.methodArguments[0]) ? 0 : e.returnValue) : e.returnValue;
@@ -278,7 +279,9 @@ module.exports = (_ => {
 			}
 
 			rerenderMessageStore() {
-				let LayerProviderIns = BdApi.ReactUtils.getOwnerInstance(document.querySelector(".container-1NXEtd"));
+				const container = ChannelClasses.container;
+				if (!container) return;
+				let LayerProviderIns = BdApi.ReactUtils.getOwnerInstance(container);
 				let LayerProviderPrototype = LayerProviderIns.__proto__
 				if (LayerProviderIns && LayerProviderPrototype) {
 					let unpatch = BdApi.Patcher.after(this.name, LayerProviderPrototype, 'render', (_, args, ret) => {
@@ -519,12 +522,12 @@ module.exports = (_ => {
 							})];
 						}
 						if (!(e.instance.props.channel.type == BDFDB.DiscordConstants.ChannelTypes.GUILD_VOICE && e.instance.props.connected)) {
-							let wrapper = BDFDB.ReactUtils.findChild(e.returnvalue, { props: [["className", BDFDB.disCN.channelwrapper]] });
+							let wrapper = BDFDB.ReactUtils.findChild(e.returnvalue, { props: [["className", ChannelClasses.wrapper]] });
 							if (wrapper) {
 								wrapper.props.onMouseDown = event => BDFDB.ListenerUtils.stopEvent(event);
 								wrapper.props.onMouseUp = event => BDFDB.ListenerUtils.stopEvent(event);
-							}
-							let mainContent = BDFDB.ReactUtils.findChild(e.returnvalue, { props: [["className", BDFDB.disCN.channelmaincontent]] });
+							}					
+							let mainContent = BDFDB.ReactUtils.findChild(e.returnvalue, { props: [["className", ChannelClasses.link]] });
 							if (mainContent) {
 								mainContent.props.onClick = event => BDFDB.ListenerUtils.stopEvent(event);
 								mainContent.props.href = null;
