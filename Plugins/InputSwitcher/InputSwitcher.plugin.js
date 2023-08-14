@@ -1,6 +1,6 @@
 /**
  * @name InputSwitcher
- * @version 1.2.3
+ * @version 1.3.0
  * @author bottom_text | Z-Team 
  * @description Switches the keyboard layout(RU & EN)/case of the message.
  * @source https://github.com/bottomtext228/BetterDiscord-Plugins/tree/main/Plugins/InputSwitcher
@@ -57,39 +57,68 @@ module.exports = (_ => {
 
             onStart() {
                 this.UserStore = BdApi.findModuleByProps('getUser', 'getCurrentUser');
-                this.MessageActions = BdApi.findModuleByProps('editMessage');
-                this.UserTagConstants = { ...ZeresPluginLibrary.WebpackModules.getByProps('userTagUsernameNoNickname'), ...ZeresPluginLibrary.WebpackModules.getByProps('defaultColor')};
+                this.MessageActions = BdApi.findModuleByProps('sendMessage', 'editMessage');
+                this.UserTagConstants = { ...ZeresPluginLibrary.WebpackModules.getByProps('userTagUsernameNoNickname'), ...ZeresPluginLibrary.WebpackModules.getByProps('defaultColor') };
+                this.SlateConstants = BdApi.findModuleByProps('slateTextArea', 'slateContainer');
+
+
+                // load settings
+                const defaultSettings = {
+                    bindings: {
+                        language: {
+                            name: 'Languange',
+                            keycombo: [17, 88]
+                        },
+                        case: {
+                            name: 'Case',
+                            keycombo: [17, 78]
+                        }
+                    }
+                };
+                this.settings = { ...defaultSettings, ...BDFDB.DataUtils.load(this, 'settings') };
+                this.settings.bindings.language.callback = this.swapLanguage; // we can't save functions in file (normally)
+                this.settings.bindings.case.callback = this.swapCase;
+
+
+                BDFDB.ListenerUtils.add(this, document, "keydown", event => {
+                    // listen channel text input + message edit text input
+                    if (BDFDB.DOMUtils.getParent(BDFDB.dotCN.textareawrapchat, document.activeElement)
+                        || (BDFDB.DOMUtils.getParent(BDFDB.dotCN.messagechanneltextarea, document.activeElement))) {
+                        this.onKeyDown(event);
+                    }
+                });
+
+
             }
             // right click on text input
             onTextAreaContextMenu(e) {
-                if (!e.instance.props.editor) {
-                    return;
-                }
+                const editor = e.instance.props.editor;
+                if (!editor) return;
 
-                const textInput = e.instance.props.editor.children[0].children;
-                if (textInput.length > 1 || textInput[0].text != '') { // if some text in the input
-                    e.returnvalue.props.children.push(BDFDB.ContextMenuUtils.createItem(BDFDB.LibraryComponents.MenuItems.MenuItem, {
-                        label: 'Switch',
-                        id: `SwitchPopUp`,
-                        children: [
-                            BDFDB.ContextMenuUtils.createItem(BDFDB.LibraryComponents.MenuItems.MenuItem, {
-                                label: 'Languange',
-                                id: 'SwitchLanguange',
-                                action: _ => 
-                                    this.setTextInputValue(e.instance.props.editor, // () => to prevent loss of 'this'
-                                        this.changeTextInputValue(textInput, (text) => this.swapLanguage(text))) 
-                            }),
-                            BDFDB.ContextMenuUtils.createItem(BDFDB.LibraryComponents.MenuItems.MenuItem, {
-                                label: 'Case',
-                                id: 'SwitchCase',
-                                action: _ => 
-                                    this.setTextInputValue(e.instance.props.editor, 
-                                        this.changeTextInputValue(textInput, (text) => this.swapCase(text)))
-                            })
-                        ]
-                    }));
+                const textInputRichValue = e.instance.props.editor.children;
+                if (BDFDB.SlateUtils.toTextValue(textInputRichValue) == '') return;  // empty input
 
-                }
+                e.returnvalue.props.children.push(BDFDB.ContextMenuUtils.createItem(BDFDB.LibraryComponents.MenuItems.MenuItem, {
+                    label: 'Switch',
+                    id: `SwitchPopUp`,
+                    children: [
+                        BDFDB.ContextMenuUtils.createItem(BDFDB.LibraryComponents.MenuItems.MenuItem, {
+                            label: 'Languange',
+                            id: 'SwitchLanguange',
+                            action: _ =>
+                                this.setTextInputRichValue(editor, // () => to prevent loss of 'this'
+                                    this.mapTextInputRichValue(textInputRichValue, (text) => this.swapLanguage(text)))
+                        }),
+                        BDFDB.ContextMenuUtils.createItem(BDFDB.LibraryComponents.MenuItems.MenuItem, {
+                            label: 'Case',
+                            id: 'SwitchCase',
+                            action: _ =>
+                                this.setTextInputRichValue(editor,
+                                    this.mapTextInputRichValue(textInputRichValue, (text) => this.swapCase(text)))
+                        })
+                    ]
+                }));
+
             }
             // right click on message
             onMessageContextMenu(e) {
@@ -131,28 +160,62 @@ module.exports = (_ => {
                 }
             }
 
-            changeTextInputValue(children, callback) {           
+            onKeyDown() {
+                for (const binding of Object.keys(this.settings.bindings)) {
+                    const action = this.settings.bindings[binding];
+                    if (this.isKeyComboPressed(action.keycombo)) {
+                        this.doKeybindAction(action.callback)
+                    }
+                }
+            }
+
+            doKeybindAction(callback) {
+                const slateDivs = [...document.querySelectorAll(`.${this.SlateConstants.slateTextArea}`)];
+                const slateTextArea = slateDivs.find(slate => slate == document.activeElement); // find active input
+
+                if (slateTextArea) {
+                    const reactProp = BdApi.ReactUtils.getInternalInstance(slateTextArea);
+                    const editor = BDFDB.ObjectUtils.get(reactProp, 'pendingProps.children.props.node');
+                    if (editor) {
+                        const replacementValue = this.mapTextInputRichValue(editor.children,
+                            (text) => callback.apply(this, [text]));
+                        this.setTextInputRichValue(editor, replacementValue);
+                    }
+                }
+            }
+
+            
+            isKeyComboPressed(keycombo) {
+                for (let key of keycombo) if (!BDFDB.ListenerUtils.isPressed(key)) return false;
+                return true;
+            }
+
+            mapTextInputRichValue(children, callback) {
                 /*
                 * (input image) https://media.discordapp.net/attachments/768531187110510602/1060284916622950521/image.png
-                * values in the input stored like objects, not like a single string
+                * richValue in the input stored like objects, not like a single string
                 * (input value image) https://media.discordapp.net/attachments/768531187110510602/1060284688020807731/image.png
                 */
-                return children.map(e => {
-                    if (Object.keys(e).length == 1 && e.text != '') { // we need only text values -> {text: 'text'}
-                        const copy = Object.assign({}, e); // cannot modify read-only
-                        copy.text = callback(copy.text); // execute callback on each text value
-                        return copy;
-                    }
-                    return e;
+                return children.map(line => {
+                    const lineCopy = Object.assign({}, line);
+                    lineCopy.children = line.children.map(e => {
+                        if (Object.keys(e).length == 1 && e.text != '') { // we need only text values -> {text: 'text'}
+                            const copy = Object.assign({}, e); // cannot modify read-only
+                            copy.text = callback(copy.text); // execute callback on each text value
+                            return copy;
+                        }
+                        return e;
+                    });
+                    return lineCopy;
                 });
             }
 
-            setTextInputValue(editor, replacement) {
+            setTextInputRichValue(editor, richValue) {
                 editor.history.stack.splice(editor.history.index + 1, 0, {
                     type: "other",
                     mergeable: false,
                     createdAt: new Date().getTime(),
-                    value: [{ children: replacement, type: 'line' }],
+                    value: richValue,
                     selection: editor.history.stack[editor.history.index].selection
                 });
                 editor.redo(); // input rerender
@@ -170,17 +233,14 @@ module.exports = (_ => {
                 return this.UserStore.getUser(id);
             }
 
-            createMessagePopUp(message) {                
+            createMessagePopUp(message) {
                 const popoutHTML =
-		            `<div>
+                    `<div>
                         <div style="margin-bottom: 10px; display: flex; justify-content: left;">
                             <img style="height: 32px; height: 32px; border-radius: 50%;" src="${message.author.getAvatarURL()}">			
                             <span style="margin-left: 10px; margin-top: 5px">
                                 <span class="${this.UserTagConstants.defaultColor}" aria-expanded="false" role="button" tabindex="0">
                                     ${message.author.username}
-                                </span>
-                                <span class="${this.UserTagConstants.discrimBase}">
-                                    #${message.author.discriminator}
                                 </span>
                             </span>
 			            </div>
@@ -193,9 +253,9 @@ module.exports = (_ => {
                 BDFDB.ModalUtils.open(this, {
                     children: [BDFDB.ReactUtils.elementToReact(BDFDB.DOMUtils.create(popoutHTML))],
                 }); // this somehow gives cross-origin error sometimes
-                */ 
-       
-               BdApi.showConfirmationModal(this.name, BDFDB.ReactUtils.elementToReact(BDFDB.DOMUtils.create(popoutHTML)), {cancelText: ''});
+                */
+
+                BdApi.showConfirmationModal(this.name, BDFDB.ReactUtils.elementToReact(BDFDB.DOMUtils.create(popoutHTML)), { cancelText: '' });
             }
 
             swapCase(message) {
@@ -225,6 +285,39 @@ module.exports = (_ => {
                 });
             }
 
+            getSettingsPanel() {
+                const settingsItems = [];
+
+                for (const binding of Object.keys(this.settings.bindings)) {
+                    const action = this.settings.bindings[binding];
+                    settingsItems.push(BDFDB.ReactUtils.createElement("div", {
+                        className: BDFDB.disCN.marginbottom20,
+                        children: [
+                            BDFDB.ReactUtils.createElement(BDFDB.LibraryComponents.Flex, {
+                                className: BDFDB.disCN.marginbottom8,
+                                align: BDFDB.LibraryComponents.Flex.Align.CENTER,
+                                direction: BDFDB.LibraryComponents.Flex.Direction.HORIZONTAL,
+                                children: [ // action label      
+                                    BDFDB.ReactUtils.createElement(BDFDB.LibraryComponents.SettingsLabel, {
+                                        label: action.name
+                                    })]
+                            }), // keybind recorder
+                            BDFDB.ReactUtils.createElement(BDFDB.LibraryComponents.KeybindRecorder, {
+                                value: action.keycombo,
+                                reset: true,
+                                disabled: false,
+                                onChange: value => {
+                                    console.log(value);
+                                    action.keycombo = value;
+                                    BDFDB.DataUtils.save(this.settings, this, 'settings');
+                                }
+                            })
+                        ]
+                    }));
+                }
+                return settingsItems;
+            }
+
             swapWords(string, callback) {
                 // executes callback on each word that don't match in regexp. I have no idea how to do this better
                 // it's just works
@@ -248,7 +341,7 @@ module.exports = (_ => {
                         var changedWord = callback(wordsToChange[wordsToChangeIterator]);
                         text = text.replace(wordsToChange[wordsToChangeIterator], changedWord); // restore original 
                     }
-                 
+
                     for (let dumpIterator in dump) {
                         const replaceAt = (string, index, replacement) => { // https://stackoverflow.com/a/1431113
                             return string.substring(0, index) + replacement + string.substring(index + replacement.length);
@@ -260,9 +353,6 @@ module.exports = (_ => {
 
                 }
                 return swappedString.slice(0, -1); // delete last space
-            }
-            onStop() {
-
             }
 
             letters = {
