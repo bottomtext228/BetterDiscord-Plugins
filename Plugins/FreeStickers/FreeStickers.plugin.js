@@ -1,6 +1,6 @@
 /**
  * @name FreeStickers
- * @version 2.0.4
+ * @version 2.0.5
  * @author bottom_text | Z-Team 
  * @description Makes available to send stickers (not animated) and any emojis everywhere like with nitro.
  * @source https://github.com/bottomtext228/BetterDiscord-Plugins/tree/main/Plugins/FreeStickers
@@ -15,7 +15,7 @@ module.exports = class FreeStickers {
         return 'FreeStickers'
     }
     getVersion() {
-        return '2.0.4'
+        return '2.0.5'
     }
     getAuthor() {
         return 'bottom_text | Z-Team';
@@ -33,7 +33,6 @@ module.exports = class FreeStickers {
 
         // hook emoji query
         BdApi.Patcher.after(this.getName(), this.fetchEmojiesWebpack, 'searchWithoutFetchingLatest', (_, args, ret) => {
-            console.log(args, ret);
             ret.unlocked.push(...ret.locked);
             ret.locked = [];
 
