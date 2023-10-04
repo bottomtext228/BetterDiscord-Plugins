@@ -1,12 +1,11 @@
 /**
  * @name SendWebhooksViaChat
- * @version 2.0.2
+ * @version 2.1.0
  * @description Sends webhook messages via Discord chat.
  * @author bottom_text | Z-Team
  * @source https://github.com/bottomtext228/BetterDiscord-Plugins/tree/main/Plugins/SendWebhooksViaChat
  * @updateUrl https://raw.githubusercontent.com/bottomtext228/BetterDiscord-Plugins/main/Plugins/SendWebhooksViaChat/SendWebhooksViaChat.plugin.js
 */
-
 
 
 module.exports = class SendWebhooksViaChat {
@@ -18,6 +17,7 @@ module.exports = class SendWebhooksViaChat {
 
 
     start() {
+
 
         this.findWebpacks();
 
@@ -56,52 +56,135 @@ module.exports = class SendWebhooksViaChat {
             'sendMessage',
             (_, args, original) => {
                 const message = args[1].content;
-                const match = message.match(/\/([^ ]+)[ ]+(.+)+/is); // `/command message`
-                if (match) {
-                    const command = match[1];
-                    const webhook = this.settings.webhooks.find(e => e.command && e.command == command); // find webhook by command
-                    if (webhook) {
-                        const messageToSend = match[2];
-                        const content = this.prepareMessageToSend(messageToSend);
-                        this.makeRequest(webhook.url, {
-                            content: content,
+                const parsingResult = this.parseMessageForWebhook(message);
+                if (parsingResult) {
+                    const { webhook, messageToSend } = parsingResult;
+
+                    this.makeWebhookRequest(webhook.url, {
+                        body: JSON.stringify({
+                            content: messageToSend,
                             username: webhook.username ? webhook.username : undefined,
                             avatar_url: webhook.avatar_url
-                        }).then(response => {
-                            if (response && response.status == 204) {
-                                BdApi.showToast('Webhook message succefully sended!', { type: 'success', timeout: 1000 });
-                            } else {
-                                BdApi.showToast(`Error during webhook request!\n${response ? response.body : 'No response.'}`, { type: 'error', timeout: 5000 });
-                            }
-                        });
-                        return; // prevent sending the message
-                    }
+                        }),
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        method: 'POST'
+                    });
+
+                    return; // prevent sending the message
                 }
+
                 original(...args);
-            }
 
+            }
         );
 
 
-
-        // TODO: send files, pictures, etc?
-
-        /* 
-
-        BdApi.Patcher.after(
+        BdApi.Patcher.instead(
             this.name,
-            BdApi.findModuleByProps('uploadFiles'),
+            BdApi.Webpack.getByKeys('uploadFiles'),
             'uploadFiles',
-            (_, args, ret) => {
-                console.log(_, args, ret);
-                return ret;
+            async (_, args, original) => {
+
+                const message = args[0].parsedMessage.content;
+                const parsingResult = this.parseMessageForWebhook(message);
+
+                if (parsingResult) {
+
+                    const { webhook, messageToSend } = parsingResult;
+
+                    // this hand-maded multipart/form-data request just works, ok? 
+                    const formBoundary = this.generateFormBoundary();
+
+                    const uploads = args[0].uploads;
+
+                    const encoder = new TextEncoder();
+
+                    let requestString =
+                        `--${formBoundary}\r\nContent-Disposition: form-data; name="payload_json"\r\n\r\n${JSON.stringify({ content: messageToSend })}`
+
+                    let data = encoder.encode(requestString);
+
+
+                    for (let uploadIterator in uploads) { // add all files to the request
+
+                        const upload = uploads[uploadIterator];
+
+                        const file = upload.item.file;
+
+                        let fileArray = new Uint8Array(await file.arrayBuffer());
+
+
+                        let fileDisposition = encoder.encode(
+                            `Content-Disposition: form-data; name="file[${uploadIterator}]"; filename="${upload.spoiler ? `SPOILER_` : ''}${upload.filename}"\r\nContent-Type: ${upload.mimeType}\r\n\r\n`);
+
+                        data = this.concatTypedArrays(data, encoder.encode(`\r\n--${formBoundary}\r\n`), fileDisposition, fileArray);
+                    }
+
+                    data = this.concatTypedArrays(data, encoder.encode(`\r\n--${formBoundary}--`));
+
+                    this.makeWebhookRequest(webhook.url, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': `multipart/form-data; boundary=${formBoundary}`
+                        },
+                        timeout: 60e3,
+                        body: data
+                    });
+
+                } else {
+
+                    return original(...args);
+                }
+
             }
         );
 
-        */
+
+    }
 
 
+    makeId(length) { // returns a string with random characters from the list
+        let result = '';
+        const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+        const charactersLength = characters.length;
+        let counter = 0;
+        while (counter < length) {
+            result += characters.charAt(Math.floor(Math.random() * charactersLength));
+            counter += 1;
+        }
+        return result;
+    }
 
+    generateFormBoundary() {
+        return `----WebKitFormBoundary${this.makeId(16)}`;
+    }
+
+    concatTypedArrays(...arrays) { // all arrays are TypedArray of same type
+        const length = arrays.reduce((accum, array) => accum + array.length, 0);
+        var resultArray = new (arrays[0].constructor)(length);
+
+        let currentLength = 0;
+        for (const array of arrays) {
+            resultArray.set(array, currentLength);
+            currentLength += array.length;
+        }
+        return resultArray;
+    }
+
+    parseMessageForWebhook(message) {
+        // extract command and messsage to send from the message content 
+        const match = message.match(/^\/([^ ]+)[ ]+(.+)+|^\/([^ ]+)/is); // `/command message` or `/command`
+        if (match) {
+            const command = match[1] || match[3];
+            const messageToSend = match[2] ? this.prepareMessageToSend(match[2]) : '';
+
+            const webhook = this.settings.webhooks.find(e => e.command && e.command == command); // find webhook by command
+
+            return { webhook, messageToSend };
+        }
+        return undefined;
     }
 
     prepareMessageToSend(string) {
@@ -125,32 +208,26 @@ module.exports = class SendWebhooksViaChat {
         return string;
     }
 
-    makeRequest(url, content) {
-        /* We cannot make a post request to the webhook url when `origin` header is https://discord.com. 
-        * It will be rejected with Bad request (400) code.
-        * Any of this methods (fetch(), require('https'), require('request'), XMLHttpRequest) automatically fills origin header,           
-        * so we can't use it
-        * The method below seems to be the only one way to do request without origin headers
-        */
-
-        // we are sending an array of `chunks`, so we split the string into symbols
-        return new Promise((resolve) => // Returns promise with a response 
-            window.DiscordNative.http.makeChunkedRequest(url, JSON.stringify(content).split(''), {
-                method: 'POST',
-                contentType: 'application/json',
-                token: '',
-                chunkInterval: 0
-            }, (e, response) => resolve(response) // e is always null
-            )
-        );
+    makeWebhookRequest(url, options) {
+        BdApi.Net.fetch(url, options).then(response => {
+            if (response.ok) {
+                BdApi.showToast('Webhook message succefully sended!', { type: 'success', timeout: 1000 });
+            } else {
+                response.text().then(error => {
+                    BdApi.showToast(`Error during webhook request!\nError: ${error}`, { type: 'error', timeout: 5000 });
+                });
+            }
+        }).catch(error => {
+            BdApi.showToast(`Error during webhook request!\n${error.name}: ${error.message}`, { type: 'error', timeout: 5000 });
+        });
     }
 
     getSettingsPanel() {
         // simple menu (kill me)
 
-        const html = this.parseHTML('<div></div>');
+        const html = BdApi.DOM.parseHTML('<div></div>');
 
-        const webhooksList = this.parseHTML(`<div id="webhooks_list"></div>`);
+        const webhooksList = BdApi.DOM.parseHTML(`<div id="webhooks_list"></div>`);
 
 
         html.appendChild(this.createButton('Add new', () => {
@@ -190,17 +267,17 @@ module.exports = class SendWebhooksViaChat {
             </div>
         </div>`;
 
-        const webhookElement = this.parseHTML(popoutHTML);
+        const webhookElement = BdApi.DOM.parseHTML(popoutHTML);
 
         // handle settings
         webhookElement.addEventListener('click', (e) => {
 
 
-            const settingsHtml = this.parseHTML('<div style="gap: 10px; display: grid"></div>');
+            const settingsHtml = BdApi.DOM.parseHTML('<div style="gap: 10px; display: grid"></div>');
 
 
             const createLabel = (label) => {
-                return this.parseHTML(`<h1 style="color:#dddddd">${label}: </h1>`);
+                return BdApi.DOM.parseHTML(`<h1 style="color:#dddddd">${label}: </h1>`);
             }
             settingsHtml.appendChild(createLabel('Webhook URL'));
             settingsHtml.appendChild(this.createInput('Webhook URL', 'input_webhook_url', webhook.url));
@@ -297,7 +374,7 @@ module.exports = class SendWebhooksViaChat {
 
     wrapElement(element) {
         const wrap = (elements) => {
-            const domWrapper = this.parseHTML(`<div class="dom-wrapper"></div>`);
+            const domWrapper = BdApi.DOM.parseHTML(`<div class="dom-wrapper"></div>`);
             for (let e = 0; e < elements.length; e++) domWrapper.appendChild(elements[e]);
             return domWrapper;
         }
@@ -305,15 +382,8 @@ module.exports = class SendWebhooksViaChat {
         return BdApi.React.createElement(BdApi.ReactUtils.wrapElement(element));
     }
 
-    parseHTML(html) {
-        var template = document.createElement('template');
-        html = html.trim();
-        template.innerHTML = html;
-        return template.content.firstChild;
-    }
-
     createButton(label, callback, id) {
-        const ret = this.parseHTML(`<button type="button" class="${this.buttonConstansts.button} ${this.buttonConstansts.lookFilled} ${this.buttonConstansts.colorBrand} ${this.buttonConstansts.sizeSmall} ${this.buttonConstansts.grow}" ${(id ? 'id="' + id + '"' : '')}><div class="contents-3ca1mk">${label}</div></button>`);
+        const ret = BdApi.DOM.parseHTML(`<button type="button" class="${this.buttonConstansts.button} ${this.buttonConstansts.lookFilled} ${this.buttonConstansts.colorBrand} ${this.buttonConstansts.sizeSmall} ${this.buttonConstansts.grow}" ${(id ? 'id="' + id + '"' : '')}><div class="contents-3ca1mk">${label}</div></button>`);
         if (callback) {
             ret.addEventListener('click', callback);
         }
@@ -321,7 +391,7 @@ module.exports = class SendWebhooksViaChat {
     }
 
     createInput(label, id, defaultValue, callback) {
-        const ret = this.parseHTML(
+        const ret = BdApi.DOM.parseHTML(
             `<div class="${this.inputConstants.container} ${this.inputConstants.medium}">
 				<div class="${this.inputConstants.inner}">
 					<input type="text" class="${this.inputConstants.input}" name="message" placeholder="${label}" id="${id}" value="${defaultValue}"/>
@@ -335,11 +405,11 @@ module.exports = class SendWebhooksViaChat {
     }
 
     findWebpacks() {
-        this.messageUtils = BdApi.findModuleByProps('sendMessage');
-        this.buttonConstansts = BdApi.findModuleByProps('lookBlank');
-        this.inputConstants = BdApi.findModuleByProps('input', 'icon', 'close', 'pointer');
-        this.emojiUtils = BdApi.findModuleByProps('getByName');
-        this.avatarUtils = BdApi.findModuleByProps('getDefaultAvatarURL');
+        this.messageUtils = BdApi.Webpack.getByKeys('sendMessage');
+        this.buttonConstansts = BdApi.Webpack.getByKeys('lookBlank');
+        this.inputConstants = BdApi.Webpack.getByKeys('input', 'icon', 'close', 'pointer');
+        this.emojiUtils = BdApi.Webpack.getByKeys('getByName');
+        this.avatarUtils = BdApi.Webpack.getByKeys('getDefaultAvatarURL');
     }
 
     stop() {
