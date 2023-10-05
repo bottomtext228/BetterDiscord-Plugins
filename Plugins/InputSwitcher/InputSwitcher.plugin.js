@@ -1,6 +1,6 @@
 /**
  * @name InputSwitcher
- * @version 1.3.0
+ * @version 1.3.1
  * @author bottom_text | Z-Team 
  * @description Switches the keyboard layout(RU & EN)/case of the message.
  * @source https://github.com/bottomtext228/BetterDiscord-Plugins/tree/main/Plugins/InputSwitcher
@@ -79,7 +79,7 @@ module.exports = (_ => {
                 this.settings.bindings.language.callback = this.swapLanguage; // we can't save functions in file (normally)
                 this.settings.bindings.case.callback = this.swapCase;
 
-
+                // TODO: maybe use this https://github.com/BetterDiscord/BetterDiscord/issues/1609 ?
                 BDFDB.ListenerUtils.add(this, document, "keydown", event => {
                     // listen channel text input + message edit text input
                     if (BDFDB.DOMUtils.getParent(BDFDB.dotCN.textareawrapchat, document.activeElement)
@@ -88,7 +88,7 @@ module.exports = (_ => {
                     }
                 });
 
-
+                
             }
             // right click on text input
             onTextAreaContextMenu(e) {
@@ -307,7 +307,6 @@ module.exports = (_ => {
                                 reset: true,
                                 disabled: false,
                                 onChange: value => {
-                                    console.log(value);
                                     action.keycombo = value;
                                     BDFDB.DataUtils.save(this.settings, this, 'settings');
                                 }
