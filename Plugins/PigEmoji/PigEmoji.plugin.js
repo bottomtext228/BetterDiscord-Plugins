@@ -1,6 +1,6 @@
 /**
  * @name PigEmoji
- * @version 2.1.3
+ * @version 2.1.4
  * @author bottom_text | Z-Team 
  * @description Replaces emoji button with any emoji.
  * @source https://github.com/bottomtext228/BetterDiscord-Plugins/tree/main/Plugins/PigEmoji
@@ -36,7 +36,6 @@ module.exports = class PigEmoji {
 
         this.patchButton();
 
-
     }
 
     async patchButton() {
@@ -52,7 +51,7 @@ module.exports = class PigEmoji {
         // https://cdn.discordapp.com/attachments/768531187110510602/1046466928128045066/image.png
         const buttonsContainter = buttonReactInstance.pendingProps.children[2];
 
-        const emojiElement = await this.createEmojiButton(buttonsContainter.props, this.settings.emoji);
+        const emojiElement = await this.createEmojiButton(this.settings.emoji);
 
         // patch React function to inject our button
         BdApi.Patcher.after(this.name, buttonsContainter.type, 'type', (_, [props], ret) => {
@@ -73,7 +72,7 @@ module.exports = class PigEmoji {
         const html = this.parseHTML(`<div></div>`);
 
         const input_id = this.parseHTML(
-            `<input type="text" class="${this.inputConstansts.inputDefault}" name="message" placeholder="Enter emoji" id="input_id" value="${this.settings.emoji}"/>`
+            `<input type="text" class="${this.inputConstants.inputDefault}" name="message" placeholder="Enter emoji" id="input_id" value="${this.settings.emoji}"/>`
         );
 
         const padding = this.parseHTML(`<pre id="padding">&nbsp</pre>`); // xd
@@ -98,15 +97,11 @@ module.exports = class PigEmoji {
 
 
     shouldDrawEmojiButton(props) {
-        if (props.type?.analyticsName == "profile_bio_input") {
-            return false;
-        }
-        const channel = props.channel;
-        if (channel.type == 1 || channel.type == 3) { // DM | Group chat
+        if (props.channel.type == 1 || props.channel.type == 3) { // DM | Group chat
             return true;
         }
         return this.permissionsWebpack.can({
-            context: channel,
+            context: props.channel,
             user: this.getCurrentUser(),
             permission: 2048n // send message
         });
@@ -114,11 +109,11 @@ module.exports = class PigEmoji {
 
     openExpressionPickerMenu(tab, props) {
         // if tab or props undefined/null/etc menu will be closed
-        this.expressionPickerWebpack.RO(tab, props);
+        this.expressionPickerWebpack.open(tab, props);
     }
 
     getExpressionPickerMenuState() {
-        return this.expressionPickerWebpack.Iu.getState();
+        return this.expressionPickerWebpack.getState();
     }
 
 
@@ -181,31 +176,37 @@ module.exports = class PigEmoji {
     }
 
 
-    async createEmojiButton(props, emojiName) {
+    async createEmojiButton(emojiName) {
 
         const emoji = this.getEmojiByName(emojiName);
-        this.emojiButtonClasses = document.getElementsByClassName(this.classConstansts.emojiButton)[0]?.className;
+
+        this.emojiButtonClasses = document.getElementsByClassName(this.classConstants.emojiButton)[0]?.className;
 
         return BdApi.React.createElement('div', {
-            class: `${this.emojiButtonClassConstansts.CT} ${this.classConstansts.buttonContainer}`,
+            class: `expression-picker-chat-input-button ${this.classConstants.buttonContainer}`,
             key: 'emoji',
         }, BdApi.React.createElement('button', {
             tabindex: "0",
             'aria-controls': "uid_5",
             'aria-expanded': "false",
             'aria-haspopup': "dialog",
-            class: `${this.classConstansts.emojiButton} ${this.buttonConstansts.button} ${this.buttonConstansts.lookBlank} ${this.buttonConstansts.colorBrand} ${this.buttonConstansts.grow}`, //this.emojiButtonClasses, //"emojiButtonNormal-35P0_i emojiButton-3FRTuj emojiButton-1fMsf3 button-3BaQ4X button-f2h6uQ lookBlank-21BCro colorBrand-I6CyqQ grow-2sR_-F",
+            class: `${this.classConstants.emojiButton} ${this.buttonConstants.button} ${this.buttonConstants.lookBlank} ${this.buttonConstants.colorBrand} ${this.buttonConstants.grow}`, //this.emojiButtonClasses, //"emojiButtonNormal-35P0_i emojiButton-3FRTuj emojiButton-1fMsf3 button-3BaQ4X button-f2h6uQ lookBlank-21BCro colorBrand-I6CyqQ grow-2sR_-F",
             onClick: () => {
                 // recreating the original behaviour
-                const activeView = this.getExpressionPickerMenuState(); // current menu ta
+                const activeView = this.getExpressionPickerMenuState(); // current menu tab
                 if (!activeView || activeView != 'emoji') {
-                    const button = document.querySelector(`.${this.classConstansts.sansAttachButton}`);
+                    const button = document.querySelector(`.${this.classConstants.inner}`);
 
-                    const buttonReactInstance = BdApi.ReactUtils.getInternalInstance(button);
+                    if (!button) {
+                        return;
+                    }
+
+                    const buttonReactInstance = BdApi.ReactUtils.getInternalInstance(button); // TODO: null here
 
                     if (!buttonReactInstance) {
                         return;
                     }
+
                     const buttonsContainter = buttonReactInstance.pendingProps.children[2];
 
                     this.openExpressionPickerMenu('emoji', buttonsContainter.props.type);
@@ -237,10 +238,10 @@ module.exports = class PigEmoji {
 
     getEmojiButton() {
         return new Promise((resolve, reject) => {
-            let button = document.querySelector(`.${this.classConstansts.sansAttachButton}`);
+            let button = document.querySelector(`.${this.classConstants.inner}`);
             if (button) resolve(button);
             const observer = new MutationObserver((mutationRecords) => {
-                button = document.querySelector(`.${this.classConstansts.sansAttachButton}`);
+                button = document.querySelector(`.${this.classConstants.inner}`);
                 if (button) {
                     resolve(button);
                     observer.disconnect();
@@ -263,8 +264,8 @@ module.exports = class PigEmoji {
     }
 
     createButton(label, callback, id) {
-        // this.buttonConstansts = BdApi.findModuleByProps('lookBlank');
-        const ret = this.parseHTML(`<button type="button" class="${this.buttonConstansts.button} ${this.buttonConstansts.lookFilled} ${this.buttonConstansts.colorBrand} ${this.buttonConstansts.sizeSmall} ${this.buttonConstansts.grow}" ${(id ? 'id="' + id + '"' : '')}><div class="contents-3ca1mk">${label}</div></button>`);
+        // this.buttonConstants = BdApi.Webpack.getByKeys('lookBlank');
+        const ret = this.parseHTML(`<button type="button" class="${this.buttonConstants.button} ${this.buttonConstants.lookFilled} ${this.buttonConstants.colorBrand} ${this.buttonConstants.sizeSmall} ${this.buttonConstants.grow}" ${(id ? 'id="' + id + '"' : '')}><div class="contents-3ca1mk">${label}</div></button>`);
         if (callback) {
             ret.addEventListener('click', callback);
         }
@@ -272,7 +273,9 @@ module.exports = class PigEmoji {
     }
 
     rerenderMessageStore() {
-        let LayerProviderIns = BdApi.ReactUtils.getOwnerInstance(document.querySelector(".chatContent-3KubbW") || document.querySelector('main'));
+        const LayerProvider = document.querySelector(`.${this.chatContentConstants.chatContent}`) || document.querySelector('main');
+        if (!LayerProvider) return;
+        let LayerProviderIns = BdApi.ReactUtils.getOwnerInstance(LayerProvider);
         let LayerProviderPrototype = LayerProviderIns.__proto__
         if (LayerProviderIns && LayerProviderPrototype) {
             let unpatch = BdApi.Patcher.after(this.name, LayerProviderPrototype, 'render', (_, args, ret) => {
@@ -293,18 +296,20 @@ module.exports = class PigEmoji {
     }
 
     findWebpacks() {
-        this.permissionsWebpack = BdApi.findModuleByProps('areChannelsLocked');
-        this.userStoreWebpack = BdApi.findModuleByProps('getCurrentUser');
-        this.getURLWebpack = BdApi.findModuleByProps('getURL');
-        this.emojiUtilities = BdApi.findModuleByProps('getByName');
+        this.permissionsWebpack = BdApi.Webpack.getByKeys('areChannelsLocked');
+        this.userStoreWebpack = BdApi.Webpack.getByKeys('getCurrentUser');
+        this.getURLWebpack = BdApi.Webpack.getByKeys('getURL');
+        this.emojiUtilities = BdApi.Webpack.getByKeys('getByName');
 
-        this.expressionPickerWebpack = BdApi.findModuleByProps('RO');
+        const [module, openKey] = BdApi.Webpack.getWithKey(m => typeof m == 'function' && m?.toString?.()?.includes('function(e,t){a.getState().activeView===e?f():s(e,t)}'));
+        const open = module[openKey];
+        const getState = Object.values(module).find(m => m?.toString?.()?.includes('function(){var e,n=arguments.length>0&&void 0!==arguments[0]?arguments[0]:t.getState,i=arguments.length>1&&void 0!==arguments[1]?arguments[1]:')).getState;
+        this.expressionPickerWebpack = { open, getState };
 
-        this.classConstansts = BdApi.findModuleByProps('profileBioInput'); // all three some html classes/discord constants
-        this.buttonConstansts = BdApi.findModuleByProps('lookBlank');
-        this.inputConstansts = BdApi.findModuleByProps('inputMini', 'inputDefault');
-
-        this.emojiButtonClassConstansts = BdApi.findModuleByProps('X1'); // .X1. EMOJI | GIF | STICKER ( 'emoji' | 'gif' | 'sticker')
+        this.classConstants = BdApi.Webpack.getByKeys('profileBioInput'); // css classes
+        this.buttonConstants = BdApi.Webpack.getByKeys('lookBlank');
+        this.inputConstants = BdApi.Webpack.getByKeys('inputMini', 'inputDefault');
+        this.chatContentConstants = BdApi.Webpack.getByKeys('chatContent', 'content', 'cursorPointer');
 
     }
 
