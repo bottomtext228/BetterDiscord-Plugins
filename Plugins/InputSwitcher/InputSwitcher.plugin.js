@@ -1,12 +1,11 @@
 /**
  * @name InputSwitcher
- * @version 1.3.1
+ * @version 1.3.2
  * @author bottom_text | Z-Team 
  * @description Switches the keyboard layout(RU & EN)/case of the message.
  * @source https://github.com/bottomtext228/BetterDiscord-Plugins/tree/main/Plugins/InputSwitcher
  * @updateUrl https://raw.githubusercontent.com/bottomtext228/BetterDiscord-Plugins/main/Plugins/InputSwitcher/InputSwitcher.plugin.js
 */
-
 
 module.exports = (_ => {
 
@@ -79,6 +78,7 @@ module.exports = (_ => {
                 this.settings.bindings.language.callback = this.swapLanguage; // we can't save functions in file (normally)
                 this.settings.bindings.case.callback = this.swapCase;
 
+
                 // TODO: maybe use this https://github.com/BetterDiscord/BetterDiscord/issues/1609 ?
                 BDFDB.ListenerUtils.add(this, document, "keydown", event => {
                     // listen channel text input + message edit text input
@@ -88,7 +88,7 @@ module.exports = (_ => {
                     }
                 });
 
-                
+
             }
             // right click on text input
             onTextAreaContextMenu(e) {
@@ -184,7 +184,7 @@ module.exports = (_ => {
                 }
             }
 
-            
+
             isKeyComboPressed(keycombo) {
                 for (let key of keycombo) if (!BDFDB.ListenerUtils.isPressed(key)) return false;
                 return true;
@@ -234,6 +234,7 @@ module.exports = (_ => {
             }
 
             createMessagePopUp(message) {
+
                 const popoutHTML =
                     `<div>
                         <div style="margin-bottom: 10px; display: flex; justify-content: left;">
@@ -244,10 +245,16 @@ module.exports = (_ => {
                                 </span>
                             </span>
 			            </div>
-                        <div style="color:#dddddd">                                   
-                            ${this.swapLanguage(message.content.replace(/<:\w+:\d+>|<@&{0,1}\d+>/g, ''))}                             
-                        <span>   	
+                        <div id="message_content" style="color: var(--text-normal)">                                                                   
+                        </div>  	
 		            </div>`;
+
+
+                const popout = BDFDB.DOMUtils.create(popoutHTML);
+
+
+                // safely inject text into the DOM via innerText
+                popout.querySelector('div[id="message_content"').innerText = this.swapLanguage(message.content.replace(/<a{0,1}:\w+:\d+>|<@&{0,1}\d+>/g, ''));
 
                 /*    
                 BDFDB.ModalUtils.open(this, {
@@ -255,7 +262,7 @@ module.exports = (_ => {
                 }); // this somehow gives cross-origin error sometimes
                 */
 
-                BdApi.showConfirmationModal(this.name, BDFDB.ReactUtils.elementToReact(BDFDB.DOMUtils.create(popoutHTML)), { cancelText: '' });
+                BdApi.showConfirmationModal(this.name, BDFDB.ReactUtils.elementToReact(popout), { cancelText: '' });
             }
 
             swapCase(message) {
@@ -322,7 +329,7 @@ module.exports = (_ => {
                 // it's just works
                 var swappedString = ''
                 var words = string.split(' ');
-                const regExp = /<:\w+:\d+>|https{0,1}:\/\/[^ ]*(?!\.)[^. ]+|<@&{0,1}\d+>|@here|@everyone/g; // guild emoji | URL | user/role mention | here/everyone
+                const regExp = /<a{0,1}:\w+:\d+>|https{0,1}:\/\/[^ ]*(?!\.)[^. ]+|<@&{0,1}\d+>|@here|@everyone/g; // guild emoji | URL | user/role mention | here/everyone
                 for (let wordsIterator in words) {
                     const word = words[wordsIterator];
                     const dump = word.match(regExp);
