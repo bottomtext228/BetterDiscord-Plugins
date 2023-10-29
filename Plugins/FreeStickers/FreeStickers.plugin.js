@@ -1,6 +1,6 @@
 /**
  * @name FreeStickers
- * @version 2.0.5
+ * @version 2.0.6
  * @author bottom_text | Z-Team 
  * @description Makes available to send stickers (not animated) and any emojis everywhere like with nitro.
  * @source https://github.com/bottomtext228/BetterDiscord-Plugins/tree/main/Plugins/FreeStickers
@@ -10,21 +10,13 @@
 
 
 module.exports = class FreeStickers {
-
-    getName() {
-        return 'FreeStickers'
-    }
-    getVersion() {
-        return '2.0.5'
-    }
-    getAuthor() {
-        return 'bottom_text | Z-Team';
-    }
-    getDescription() {
-        return 'Makes available to send stickers (not animated) and any emojis everywhere like with nitro.'
-    }
+	constructor(meta) {
+		for (let key in meta) {
+			this[key] = meta[key];
+		}
+	}
     start() {
-        console.log(`${this.getName()}: started!`);
+        console.log(`${this.name}: started!`);
 
         this.findWebpacks();
 
@@ -32,19 +24,19 @@ module.exports = class FreeStickers {
         // Patch emojies 
 
         // hook emoji query
-        BdApi.Patcher.after(this.getName(), this.fetchEmojiesWebpack, 'searchWithoutFetchingLatest', (_, args, ret) => {
+        BdApi.Patcher.after(this.name, this.fetchEmojiesWebpack, 'searchWithoutFetchingLatest', (_, args, ret) => {
             ret.unlocked.push(...ret.locked);
             ret.locked = [];
 
         });
 
         // hook to allow adding emoji
-        BdApi.Patcher.after(this.getName(), this.emojiWebpack, 'getEmojiUnavailableReason', (_, args, ret) => {
+        BdApi.Patcher.after(this.name, this.emojiWebpack, 'getEmojiUnavailableReason', (_, args, ret) => {
             return null;
         });
 
         // hook to make all emojies non-disable in emoji picker menu
-        BdApi.Patcher.after(this.getName(), this.emojiWebpack, 'isEmojiDisabled', (_, args, ret) => {
+        BdApi.Patcher.after(this.name, this.emojiWebpack, 'isEmojiDisabled', (_, args, ret) => {
             return false;
         });
 
@@ -52,12 +44,12 @@ module.exports = class FreeStickers {
         // Patch stickers
 
         // hook to allow send stickers
-        BdApi.Patcher.instead(this.getName(), this.stickerSendabilityWebpack.module, this.stickerSendabilityWebpack.functionName, (_, args, ret) => {
+        BdApi.Patcher.instead(this.name, this.stickerSendabilityWebpack.module, this.stickerSendabilityWebpack.functionName, (_, args, ret) => {
             return true;
         });
 
         // change message object and replace emoji/sticker objects with its URL
-        BdApi.Patcher.instead(this.getName(), this.enqueWebpack, 'enqueue', (_, args, original) => {
+        BdApi.Patcher.instead(this.name, this.enqueWebpack, 'enqueue', (_, args, original) => {
             const message = args[0].message;
 
             /* stickers */
@@ -85,15 +77,15 @@ module.exports = class FreeStickers {
         // Patching permissions is not working anymore
 
         /* 
-        BdApi.Patcher.after(this.getName(), this.permissionsWebpack, 'canUseStickersEverywhere', (_, args, ret) => {
+        BdApi.Patcher.after(this.name, this.permissionsWebpack, 'canUseStickersEverywhere', (_, args, ret) => {
             return true;
         });
 
-        BdApi.Patcher.after(this.getName(), this.permissionsWebpack, 'canUseEmojisEverywhere', (_, args, ret) => {
+        BdApi.Patcher.after(this.name, this.permissionsWebpack, 'canUseEmojisEverywhere', (_, args, ret) => {
             return true;
         });
 
-        BdApi.Patcher.after(this.getName(), this.permissionsWebpack, 'canUseAnimatedEmojis', (_, args, ret) => {
+        BdApi.Patcher.after(this.name, this.permissionsWebpack, 'canUseAnimatedEmojis', (_, args, ret) => {
             return true;
         }); 
         */
@@ -128,12 +120,12 @@ module.exports = class FreeStickers {
     }
 
     findWebpacks() {
-        this.fetchEmojiesWebpack = BdApi.findModuleByProps('searchWithoutFetchingLatest');
-        this.enqueWebpack = BdApi.findModuleByProps('enqueue');
-        this.emojiWebpack = BdApi.findModuleByProps('getEmojiUnavailableReason');
-        this.channelStoreWebpack = BdApi.findModuleByProps('getChannel', 'getDMUserIds');
-        this.customEmojieUtilities = BdApi.findModuleByProps('getCustomEmojiById');
-        this.stickerWebpack = BdApi.findModuleByProps('getStickerById');
+        this.fetchEmojiesWebpack = BdApi.Webpack.getByKeys('searchWithoutFetchingLatest');
+        this.enqueWebpack = BdApi.Webpack.getByKeys('enqueue', 'draining');
+        this.emojiWebpack = BdApi.Webpack.getByKeys('getEmojiUnavailableReason');
+        this.channelStoreWebpack = BdApi.Webpack.getByKeys('getChannel', 'getDMUserIds');
+        this.customEmojieUtilities = BdApi.Webpack.getByKeys('getCustomEmojiById');
+        this.stickerWebpack = BdApi.Webpack.getByKeys('getStickerById');
 
         // Sticker module is hard to find, so use this
         const functionToString = (() => {
@@ -171,7 +163,7 @@ module.exports = class FreeStickers {
     }
 
     stop() {
-        console.log(`${this.getName()}: stopped!`);
-        BdApi.Patcher.unpatchAll(this.getName());
+        console.log(`${this.name}: stopped!`);
+        BdApi.Patcher.unpatchAll(this.name);
     }
 }
