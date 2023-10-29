@@ -1,6 +1,6 @@
 /**
  * @name CopyGIFLink
- * @version 1.0.0
+ * @version 1.0.1
  * @author bottom_text | Z-Team 
  * @description Copies a GIF link instead of sending a GIF when the Shift key is pressed.
  * @source https://github.com/bottomtext228/BetterDiscord-Plugins/tree/main/Plugins/CopyGIFLink
@@ -58,7 +58,7 @@ module.exports = (_ => {
 
                 const keyToPress = 16; // shift key
 
-                let [module, key] = BdApi.Webpack.getWithKey(m => m?.render?.toString?.()?.includes('resultQuery:p.Z.getResultQuery(),resultItems:p.Z.getResultItems(),suggestions:p.Z.getSuggestions()'))
+                let [module, key] = BdApi.Webpack.getWithKey(m => m?.render?.toString?.()?.includes('default.getResultItems(),suggestions:'))
                
                 BdApi.Patcher.after(this.name, module[key], 'render', (_, args, ret) => {
                     const original = ret.props.onSelectGIF;
