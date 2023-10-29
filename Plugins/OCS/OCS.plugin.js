@@ -1,6 +1,6 @@
 /**
  * @name OCS
- * @version 2.2.8
+ * @version 2.2.9
  * @description Orpheus Containment System.
  * @author bottom_text | Z-Team
  * @source https://github.com/bottomtext228/BetterDiscord-Plugins/tree/main/Plugins/OCS
@@ -29,7 +29,7 @@ module.exports = class OCS {
 
 		console.log(`${this.name}: started!`);
 
-		this.findWebPacks();
+		this.findWebpacks();
 
 		this.loadSettings();
 		this.labels = this.setLabelsByLanguage();
@@ -50,7 +50,7 @@ module.exports = class OCS {
 
 		BdApi.Patcher.before(
 			this.name,
-			this.DispatchWebPack,
+			this.DispatchWebpack,
 			'dispatch',
 			(_, args) => this.onDispatchEvent(args)
 		);
@@ -59,7 +59,7 @@ module.exports = class OCS {
 
 		BdApi.Patcher.instead(
 			this.name,
-			this.ComponentDispatchWebpack, 
+			this.ComponentDispatchWebpack,
 			'dispatch',
 			(_, args, original) => this.onComponentDispatchDispatchEvent(args, original)
 		); // хук для отключения тряски приложения
@@ -105,7 +105,6 @@ module.exports = class OCS {
 					currentObject.reactions.forEach(reaction => {
 						message += this.prepareEmojiToSend(reaction, true) + ' ';
 					});
-
 					if (!isLocalUser || !this.sendedMessages.some(e => e.messageId == dispatch.message.id)) { // избегаем "рекурсии" при работе на локального пользователя
 						this.sendMessage(dispatch.message.channel_id, message, (response) => {
 							if (response.ok) {
@@ -141,37 +140,37 @@ module.exports = class OCS {
 	}
 
 	sendMessage(channelId, content, responseCallback) {
-		this.MessageQueueWebPack.enqueue({
+ 		this.MessageQueueWebpack.enqueue({
 			type: 0,
 			message: {
 				channelId: channelId,
 				content: content,
 			} // callback is called when we get server's response
-		}, typeof (responseCallback) == 'function' ? responseCallback : () => { });
+		}, typeof (responseCallback) == 'function' ? responseCallback : () => { }); 
 	}
 
 	deleteMessage(channelId, messageId) {
-		return this.MessageUtilitiesWebPack.deleteMessage(channelId, messageId);
+		return this.MessageUtilitiesWebpack.deleteMessage(channelId, messageId);
 	}
 
 	getMembers(guildId) {
-		return this.GetMembersWebPack.getMembers(guildId);
+		return this.GetMembersWebpack.getMembers(guildId);
 	}
 
 	getGuild(guildId) {
-		return this.GetGuildWebPack.getGuild(guildId);
+		return this.GetGuildWebpack.getGuild(guildId);
 	}
 
 	getGuilds() {
-		return this.GuildUtilities.getGuilds();
+		return this.GuildUtilitiesWebpack.getGuilds();
 	}
 
 	getCurrentUser() {
-		return this.GetUserWebPack.getCurrentUser();
+		return this.GetUserWebpack.getCurrentUser();
 	}
 
 	getUser(id) {
-		return this.GetUserWebPack.getUser(id);
+		return this.GetUserWebpack.getUser(id);
 	}
 
 	getEmojiUrl(emojiSurrogate) { // example: '🐖' -> '/assets/d083412544c302d290775006877f6202.svg'
@@ -186,40 +185,32 @@ module.exports = class OCS {
 	}
 
 	sendReaction(channelId, messageId, emoji) {
-		this.ReactionUtilities.rU(channelId, messageId, this.prepareEmojiToSend(emoji), undefined, { burst: false });
+		this.ReactionUtilitiesWebpack.addReaction(channelId, messageId, this.prepareEmojiToSend(emoji), undefined, { burst: false });
 	}
 
 	prepareEmojiToSend(emoji, toString = false) { // tostring - bool. false - return object for addReaction, true - return string for message
 
 		if (emoji.type == this.emojiType.unicode) {
-			const unicodeEmoji = this.GetByNameemojiWebPack.getByName(emoji.name);
+			const unicodeEmoji = this.EmojiUtilitiesWebpack.getByName(emoji.name);
 			if (unicodeEmoji) {
-				return toString ? unicodeEmoji.surrogates : {
-					id: unicodeEmoji.id == undefined ? null : unicodeEmoji.id,
-					name: unicodeEmoji.surrogates,
-					animated: unicodeEmoji.animated,
-				}
+				return toString ? unicodeEmoji.surrogates : this.ReactionUtilitiesWebpack.toReactionEmoji(unicodeEmoji);
 			}
 		}
 		else {
 			const customEmoji = this.getCustomEmojiById(emoji.id);
 			if (customEmoji) {
-				return toString ? `<:${customEmoji.name}:${customEmoji.id}>` : {
-					id: customEmoji.id == undefined ? null : customEmoji.id,
-					name: customEmoji.name,
-					animated: customEmoji.animated,
-				}
+				return toString ? `<${customEmoji.animated ? 'a' : ''}:${customEmoji.name}:${customEmoji.id}>` : this.ReactionUtilitiesWebpack.toReactionEmoji(customEmoji);
 			}
 		}
 		return '';
 	}
 
 	getCustomEmojiById(customEmojiId) {
-		return this.GuildUtilities.getCustomEmojiById(customEmojiId);
+		return this.GuildUtilitiesWebpack.getCustomEmojiById(customEmojiId);
 	}
 
 	createButton(label, callback, id) {
-		const ret = this.parseHTML(`<button type="button" class="${this.ButtonConstansts.button} ${this.ButtonConstansts.lookFilled} ${this.ButtonConstansts.colorBrand} ${this.ButtonConstansts.sizeSmall} ${this.ButtonConstansts.grow}" ${(id ? 'id="' + id + '"' : '')}><div class="contents-3ca1mk">${label}</div></button>`);
+		const ret = BdApi.DOM.parseHTML(`<button type="button" class="${this.ButtonConstansts.button} ${this.ButtonConstansts.lookFilled} ${this.ButtonConstansts.colorBrand} ${this.ButtonConstansts.sizeSmall} ${this.ButtonConstansts.grow}" ${(id ? 'id="' + id + '"' : '')}><div class="contents-3ca1mk">${label}</div></button>`);
 		if (callback) {
 			ret.addEventListener('click', callback);
 		}
@@ -227,7 +218,7 @@ module.exports = class OCS {
 	}
 
 	createInput(label, id, callback) {
-		const ret = this.parseHTML(
+		const ret = BdApi.DOM.parseHTML(
 			`<div class="${this.InputConstants.container} ${this.InputConstants.medium}">
 				<div class="${this.InputConstants.inner}">
 					<input type="text" class="${this.InputConstants.input}" name="message" placeholder="${label}" id="${id}"/>
@@ -240,30 +231,19 @@ module.exports = class OCS {
 		return ret;
 	}
 
-	parseHTML(html) {
-		var template = document.createElement('template');
-		html = html.trim(); // Never return a text node of whitespace as the result
-		template.innerHTML = html;
-		return template.content.firstChild;
-	}
+	findWebpacks() {
 
-	findWebPacks() {
-
-		/* зачем все эти приколы с эмодзи помещать в разные модули??? */
-
-
-		this.ReactionUtilities = ZeresPluginLibrary.WebpackModules.getByProps('rU', 'wX'); // ...
-		this.EmojiUtilitiesWebpack = ZeresPluginLibrary.WebpackModules.getByProps('getURL');
-		this.GuildUtilities = ZeresPluginLibrary.WebpackModules.getByProps('getGuildEmoji');
-		this.GetByNameemojiWebPack = ZeresPluginLibrary.WebpackModules.getByProps('getByName');
+		this.ReactionUtilitiesWebpack = { ...ZeresPluginLibrary.WebpackModules.getByProps('addReaction', 'getReactors'), ...ZeresPluginLibrary.WebpackModules.getByProps('toReactionEmoji', 'getReactionEmojiName') };
+		this.EmojiUtilitiesWebpack = { ...ZeresPluginLibrary.WebpackModules.getByProps('getURL'), ...ZeresPluginLibrary.WebpackModules.getByProps('getByName') };
+		this.GuildUtilitiesWebpack = ZeresPluginLibrary.WebpackModules.getByProps('getGuildEmoji');
 
 		this.ComponentDispatchWebpack = ZeresPluginLibrary.WebpackModules.getByProps('S', 'b').S // ...
-		this.DispatchWebPack = ZeresPluginLibrary.WebpackModules.find(e => e.dispatch && !e.getCurrentUser);
-		this.GetGuildWebPack = ZeresPluginLibrary.WebpackModules.getByProps('getGuild', 'getGuildCount');
-		this.GetMembersWebPack = ZeresPluginLibrary.WebpackModules.getByProps('getMembers');
-		this.GetUserWebPack = ZeresPluginLibrary.WebpackModules.getByProps('getUser', 'getCurrentUser');
-		this.MessageQueueWebPack = ZeresPluginLibrary.WebpackModules.getByProps('enqueue');
-		this.MessageUtilitiesWebPack = ZeresPluginLibrary.WebpackModules.getByProps('deleteMessage');
+		this.DispatchWebpack = ZeresPluginLibrary.WebpackModules.find(e => e.dispatch && !e.getCurrentUser);
+		this.GetGuildWebpack = ZeresPluginLibrary.WebpackModules.getByProps('getGuild', 'getGuildCount');
+		this.GetMembersWebpack = ZeresPluginLibrary.WebpackModules.getByProps('getMembers');
+		this.GetUserWebpack = ZeresPluginLibrary.WebpackModules.getByProps('getUser', 'getCurrentUser');
+		this.MessageQueueWebpack = ZeresPluginLibrary.WebpackModules.getByProps('enqueue', 'draining');
+		this.MessageUtilitiesWebpack = ZeresPluginLibrary.WebpackModules.getByProps('deleteMessage', 'sendMessage', 'editMessage');
 		this.ButtonConstansts = ZeresPluginLibrary.WebpackModules.getByProps('lookBlank');
 
 		this.UserTagConstants = { ...ZeresPluginLibrary.WebpackModules.getByProps('userTagUsernameNoNickname'), ...ZeresPluginLibrary.WebpackModules.getByProps('defaultColor') };
@@ -299,7 +279,7 @@ module.exports = class OCS {
 
 			const elements = [];
 
-			const userToAdd = this.parseHTML(`<div id="usertoadd"></div>`);
+			const userToAdd = BdApi.DOM.parseHTML(`<div id="usertoadd"></div>`);
 			const input_id = this.createInput(this.labels.input_id, 'input_id', () => {
 				const userIdToFind = document.getElementById('input_id').value.trim();
 				if (userIdToFind == '')
@@ -311,7 +291,7 @@ module.exports = class OCS {
 			});
 
 
-			const membersTable = this.parseHTML(`<table id="findObjects"></table>`);
+			const membersTable = BdApi.DOM.parseHTML(`<table id="findObjects"></table>`);
 
 			const input_name = this.createInput(this.labels.input_name, 'input_name', () => {
 
@@ -331,7 +311,7 @@ module.exports = class OCS {
 			});
 
 
-			const padding = this.parseHTML(`<pre>&nbsp</pre>`);
+			const padding = BdApi.DOM.parseHTML(`<pre>&nbsp</pre>`);
 
 			elements.push(userToAdd);
 			elements.push(input_id);
@@ -364,15 +344,15 @@ module.exports = class OCS {
 				}
 			}
 			// get all guild emojis
-			this.allEmojis.push(...this.GuildUtilities.getGuildEmoji(guildId).map(e => { return { name: e.name, id: e.id, type: this.emojiType.custom } }));
+			this.allEmojis.push(...this.GuildUtilitiesWebpack.getGuildEmoji(guildId).map(e => { return { name: e.name, id: e.id, type: this.emojiType.custom } }));
 
 		} // get all unicode emojis
-		this.allEmojis.push(...this.GetByNameemojiWebPack.all().map(e => { return { name: e.uniqueName, type: this.emojiType.unicode } }));
+		this.allEmojis.push(...this.EmojiUtilitiesWebpack.all().map(e => { return { name: e.uniqueName, type: this.emojiType.unicode } }));
 
 
 		if (this.sendedMessages.length > 0) {
 			const deleteButton =
-				this.parseHTML(
+				BdApi.DOM.parseHTML(
 					`<button type="button" id="delete_button" style="width:565px"
 				class="${this.ButtonConstansts.button} ${this.ButtonConstansts.lookFilled} ${this.ButtonConstansts.colorBrand} ${this.ButtonConstansts.sizeSmall} ${this.ButtonConstansts.grow}">
 				<div class="contents-3ca1mk">${this.labels.delete_button}</div>
@@ -430,7 +410,7 @@ module.exports = class OCS {
 
 		currentObject.reactions.forEach(reaction => {
 			Array.from(elem.querySelectorAll('div')).find(e => e.id == 'emojis').append(
-				this.parseHTML(`<div>${this.getReactionTextToDisplay(reaction)}</div>`)
+				BdApi.DOM.parseHTML(`<div>${this.getReactionTextToDisplay(reaction)}</div>`)
 			)
 		});
 
@@ -439,28 +419,28 @@ module.exports = class OCS {
 			const currentObjectReactions = Object.assign([], currentObject.reactions);
 
 			const reactionsInput = this.createInput(this.labels.input_reactions, 'input_reactions', (e) => {
-				
+
 				const value = document.getElementById('input_reactions').value.trim(); // HERE
 				const table = document.getElementById('emojisToAdd');
 				table.innerHTML = '';
-			
+
 				currentObjectReactions.forEach(reaction => { // HERE
 					const textToDisplay = this.getReactionTextToDisplay(reaction);
 					if (textToDisplay != '') {
-						const reactionElement = this.parseHTML(`<div>${this.getReactionTextToDisplay(reaction)}</div>`);
+						const reactionElement = BdApi.DOM.parseHTML(`<div>${this.getReactionTextToDisplay(reaction)}</div>`);
 						reactionElement.addEventListener('click', (e) => {
 							// delete 
 							e.target.parentElement.outerHTML = ''; // order is important or parentElement will be undefined
 							e.target.parentElement.innerHTML = '';
 
 							currentObjectReactions.splice(currentObjectReactions.indexOf(reaction), 1);
-					
+
 						})
 						emojis.append(reactionElement);
 					}
 				});
 
-			
+
 				const emojisQueryList = document.getElementById('emojisQueryList');
 				emojisQueryList.innerHTML = '';
 
@@ -470,18 +450,17 @@ module.exports = class OCS {
 						if (emoji.name.toLowerCase().search(value.toLowerCase()) != -1) {
 
 
-							const emojiQueryResult = this.parseHTML(
-							`<div style="height: 50px; margin-top: 10px; margin-bottom: 10px; display: flex; align-items: center;">						
+							const emojiQueryResult = BdApi.DOM.parseHTML(
+								`<div style="height: 50px; margin-top: 10px; margin-bottom: 10px; display: flex; align-items: center;">						
 								<div style="width: 50px;">${this.getReactionTextToDisplay(emoji)}</div>
 								<div style="width: 100px; margin-left: 2%; color: white">:${emoji.name}:</div>
 								${emoji.type == this.emojiType.custom ? `<div style="color: grey; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; width: 100%; text-align: right;">${this.getGuild(this.getCustomEmojiById(emoji.id).guildId).name}</div>` : ''}
 							</div>`);
-	
-							emojiQueryResult.addEventListener('click', () => {
 
-								if (!currentObjectReactions.some(e => _.isEqual(e, emoji))) { // if not already added
+							emojiQueryResult.addEventListener('click', () => {
+								if (!currentObjectReactions.some(e => this.isEqual(e, emoji))) { // if not already added
 									currentObjectReactions.push(emoji);
-									const reactionElement = this.parseHTML(`<div>${this.getReactionTextToDisplay(emoji)}</div>`);
+									const reactionElement = BdApi.DOM.parseHTML(`<div>${this.getReactionTextToDisplay(emoji)}</div>`);
 									reactionElement.addEventListener('click', (e) => {
 										// delete reaction 
 
@@ -489,7 +468,7 @@ module.exports = class OCS {
 										e.target.parentElement.innerHTML = '';
 
 										currentObjectReactions.splice(currentObjectReactions.indexOf(emoji), 1);
-							
+
 									})
 									emojis.append(reactionElement);
 								}
@@ -503,27 +482,27 @@ module.exports = class OCS {
 
 			});
 
-	
-			const emojis = this.parseHTML(
+
+			const emojis = BdApi.DOM.parseHTML(
 				`<div id="emojisToAdd" style="display: flex; flex-wrap: wrap; gap: 5px; margin: 10px auto 10px;">
 				</div>`
 			)
 
-			const emojisQueryList = this.parseHTML('<div id="emojisQueryList"></div>');
-	
+			const emojisQueryList = BdApi.DOM.parseHTML('<div id="emojisQueryList"></div>');
+
 			currentObject.reactions.forEach(reaction => {
 
 
 				const textToDisplay = this.getReactionTextToDisplay(reaction);
 				if (textToDisplay != '') {
-					const reactionElement = this.parseHTML(`<div>${textToDisplay}</div>`);
+					const reactionElement = BdApi.DOM.parseHTML(`<div>${textToDisplay}</div>`);
 					reactionElement.addEventListener('click', (e) => {
 						// delete 
 						e.target.parentElement.outerHTML = ''; // order is important or parentElement will be undefined
 						e.target.parentElement.innerHTML = '';
-					
+
 						currentObjectReactions.splice(currentObjectReactions.indexOf(reaction), 1);
-		
+
 					})
 					emojis.append(reactionElement);
 				}
@@ -531,7 +510,7 @@ module.exports = class OCS {
 
 
 
-			const containingMethodText = this.parseHTML(`<span style="color:#dddddd">${this.labels.containing_method_text}: </span>`);
+			const containingMethodText = BdApi.DOM.parseHTML(`<span style="color:#dddddd">${this.labels.containing_method_text}: </span>`);
 
 			const radioGroup = [
 				{
@@ -555,7 +534,7 @@ module.exports = class OCS {
 			elements.push(containingMethodText);
 			elements.push(containingMethodRadioGroup);
 
-		
+
 			elements.push(emojis);
 
 			elements.push(reactionsInput);
@@ -581,20 +560,20 @@ module.exports = class OCS {
 					const emojisList = Array.from(elem.querySelectorAll('div')).find(e => e.id == 'emojis');
 					emojisList.innerHTML = '';
 
-		
+
 					currentObject.reactions = [];
 					const reactions = currentObjectReactions;
 					if (reactions.length > 0) {
 						reactions.forEach(reaction => {
 							const textToDisplay = this.getReactionTextToDisplay(reaction);
-							if (textToDisplay != '') {						
+							if (textToDisplay != '') {
 								emojisList.append(
-									this.parseHTML(`<div>${this.getReactionTextToDisplay(reaction)}</div>`)
+									BdApi.DOM.parseHTML(`<div>${this.getReactionTextToDisplay(reaction)}</div>`)
 								);
 								currentObject.reactions.push(reaction);
 							}
 						});
-						
+
 					}
 
 					currentObject.method = containingMethod;
@@ -618,7 +597,7 @@ module.exports = class OCS {
 	getReactionTextToDisplay(reaction) {
 		var textToDisplay = '';
 		if (reaction.type == this.emojiType.unicode) {
-			const emoji = this.GetByNameemojiWebPack.getByName(reaction.name);
+			const emoji = this.EmojiUtilitiesWebpack.getByName(reaction.name);
 			if (emoji) {
 				textToDisplay = `<img aria-label="${emoji.surrogates}" src="${this.getEmojiUrl(emoji.surrogates)}" alt="${emoji.surrogates}" draggable="false" class="emoji jumboable" data-type="emoji"></img>`;
 			}
@@ -688,7 +667,7 @@ module.exports = class OCS {
 		}
 	}
 
-	saveSettings() {	
+	saveSettings() {
 		BdApi.saveData(this.name, 'data', this.containedObjects);
 	}
 
@@ -731,7 +710,7 @@ module.exports = class OCS {
 		}
 
 	}
-	
+
 	checkLibraries(libraries) {
 		const div = BdApi.React.createElement('div', {});
 		div.props.children = [];
@@ -759,6 +738,18 @@ module.exports = class OCS {
 			BdApi.alert('Missing libraries were downloaded', div);
 			BdApi.Plugins.disable(this.name);
 			return false;
+		}
+		return true;
+	}
+
+	isEqual(a, b) {
+		if (a === b) return a !== 0 || 1 / a === 1 / b;
+		if (a == null || b == null) return false;
+		if (a !== a) return b !== b;
+		for (let key of Object.keys(a)) {
+			if (!b[key] || a[key] != b[key]) {
+				return false;
+			}
 		}
 		return true;
 	}
