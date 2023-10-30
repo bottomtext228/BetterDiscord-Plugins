@@ -1,13 +1,11 @@
 /**
  * @name PigEmoji
- * @version 2.1.4
+ * @version 2.1.5
  * @author bottom_text | Z-Team 
  * @description Replaces emoji button with any emoji.
  * @source https://github.com/bottomtext228/BetterDiscord-Plugins/tree/main/Plugins/PigEmoji
  * @updateUrl https://raw.githubusercontent.com/bottomtext228/BetterDiscord-Plugins/main/Plugins/PigEmoji/PigEmoji.plugin.js
 */
-
-
 
 module.exports = class PigEmoji {
     constructor(meta) {
@@ -20,7 +18,7 @@ module.exports = class PigEmoji {
         console.log(`${this.name}: started!`);
 
         this.findWebpacks();
-
+        
 
         /* TODO:
             * future: make ability to set custom svg images
@@ -69,13 +67,13 @@ module.exports = class PigEmoji {
 
     getSettingsPanel() {
         // simple menu 
-        const html = this.parseHTML(`<div></div>`);
+        const html = BdApi.DOM.parseHTML(`<div></div>`);
 
-        const input_id = this.parseHTML(
+        const input_id = BdApi.DOM.parseHTML(
             `<input type="text" class="${this.inputConstants.inputDefault}" name="message" placeholder="Enter emoji" id="input_id" value="${this.settings.emoji}"/>`
         );
 
-        const padding = this.parseHTML(`<pre id="padding">&nbsp</pre>`); // xd
+        const padding = BdApi.DOM.parseHTML(`<pre id="padding">&nbsp</pre>`); // xd
 
         const confirm_button = this.createButton('Save', () => {
             const value = document.getElementById('input_id').value.trim();
@@ -109,11 +107,11 @@ module.exports = class PigEmoji {
 
     openExpressionPickerMenu(tab, props) {
         // if tab or props undefined/null/etc menu will be closed
-        this.expressionPickerWebpack.open(tab, props);
+        this.expressionPickerWebpack.toggleExpressionPicker(tab, props);
     }
 
     getExpressionPickerMenuState() {
-        return this.expressionPickerWebpack.getState();
+        return this.expressionPickerWebpack.useExpressionPickerStore.getState();
     }
 
 
@@ -256,16 +254,9 @@ module.exports = class PigEmoji {
         return this.getURLWebpack.getURL(emojiSurrogate);
     }
 
-    parseHTML(html) {
-        var template = document.createElement('template');
-        html = html.trim(); // Never return a text node of whitespace as the result
-        template.innerHTML = html;
-        return template.content.firstChild;
-    }
-
     createButton(label, callback, id) {
         // this.buttonConstants = BdApi.Webpack.getByKeys('lookBlank');
-        const ret = this.parseHTML(`<button type="button" class="${this.buttonConstants.button} ${this.buttonConstants.lookFilled} ${this.buttonConstants.colorBrand} ${this.buttonConstants.sizeSmall} ${this.buttonConstants.grow}" ${(id ? 'id="' + id + '"' : '')}><div class="contents-3ca1mk">${label}</div></button>`);
+        const ret = BdApi.DOM.parseHTML(`<button type="button" class="${this.buttonConstants.button} ${this.buttonConstants.lookFilled} ${this.buttonConstants.colorBrand} ${this.buttonConstants.sizeSmall} ${this.buttonConstants.grow}" ${(id ? 'id="' + id + '"' : '')}><div class="contents-3ca1mk">${label}</div></button>`);
         if (callback) {
             ret.addEventListener('click', callback);
         }
@@ -300,12 +291,8 @@ module.exports = class PigEmoji {
         this.userStoreWebpack = BdApi.Webpack.getByKeys('getCurrentUser');
         this.getURLWebpack = BdApi.Webpack.getByKeys('getURL');
         this.emojiUtilities = BdApi.Webpack.getByKeys('getByName');
-
-        const [module, openKey] = BdApi.Webpack.getWithKey(m => typeof m == 'function' && m?.toString?.()?.includes('function(e,t){a.getState().activeView===e?f():s(e,t)}'));
-        const open = module[openKey];
-        const getState = Object.values(module).find(m => m?.toString?.()?.includes('function(){var e,n=arguments.length>0&&void 0!==arguments[0]?arguments[0]:t.getState,i=arguments.length>1&&void 0!==arguments[1]?arguments[1]:')).getState;
-        this.expressionPickerWebpack = { open, getState };
-
+        this.expressionPickerWebpack = BdApi.Webpack.getByKeys('toggleExpressionPicker');
+        
         this.classConstants = BdApi.Webpack.getByKeys('profileBioInput'); // css classes
         this.buttonConstants = BdApi.Webpack.getByKeys('lookBlank');
         this.inputConstants = BdApi.Webpack.getByKeys('inputMini', 'inputDefault');
