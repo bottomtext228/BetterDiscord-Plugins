@@ -1,7 +1,7 @@
 /**
  * @name ShowHiddenChannelsRe
  * @author DevilBro + bottom_text | Z-Team
- * @version 1.0.3
+ * @version 1.0.4
  * @description Displays all hidden Channels, which can't be accessed due to Role Restrictions, this won't allow you to read them (impossible). Original plugin by DevilBro is taken down by himself due to BetterDiscord plugins rules. This is re-release version with fixes.
  * @updateUrl https://raw.githubusercontent.com/bottomtext228/BetterDiscord-Plugins/main/Plugins/ShowHiddenChannelsRe/ShowHiddenChannelsRe.plugin.js
  * @source https://github.com/bottomtext228/BetterDiscord-Plugins/tree/main/Plugins/ShowHiddenChannelsRe
@@ -14,7 +14,7 @@ module.exports = (_ => {
 		"info": {
 			"name": "ShowHiddenChannelsRe",
 			"author": "DevilBro + bottom_text | Z-Team",
-			"version": "1.0.3",
+			"version": "1.0.4",
 			"description": "Displays all hidden Channels, which can't be accessed due to Role Restrictions, this won't allow you to read them (impossible)"
 		}
 	};
@@ -101,7 +101,7 @@ module.exports = (_ => {
 
 		const UnreadChannelUtils = BdApi.findModuleByProps('isForumPostUnread');
 		const VoiceUtils = BdApi.findModuleByProps('getVoiceStateForUser');
-		const ChannelClasses = {...BdApi.findModuleByProps('channelEmoji', 'link', 'wrapper'), ...BdApi.findModuleByProps('containter', 'dropdownButton', 'tooltip')};
+		const ChannelClasses = { ...BdApi.findModuleByProps('channelEmoji', 'link', 'wrapper'), ...BdApi.findModuleByProps('containter', 'dropdownButton', 'tooltip') };
 
 
 		const UserRowComponent = class UserRow extends BdApi.React.Component {
@@ -138,7 +138,7 @@ module.exports = (_ => {
 							children: this.props.user.nick || this.props.user.username,
 							style: { color: this.props.user.colorString ? this.props.user.colorString : '#f2f3f5' }
 						}),
-						!this.props.user.discriminator ? null : BDFDB.ReactUtils.createElement("span", {
+						(!this.props.user.discriminator || this.props.user.discriminator == "0") ? null : BDFDB.ReactUtils.createElement("span", {
 							className: BDFDB.disCN.listdiscriminator,
 							children: `#${this.props.user.discriminator}`
 						}),
@@ -206,12 +206,12 @@ module.exports = (_ => {
 				this.modulePatches = {
 					before: [
 						"ChannelsList",
-						"ChannelItem",
-						"VoiceUsers"
-					],
+						"VoiceUsers",
+/* 						"ChannelItem" */
+					]/* , 
 					after: [
-						"ChannelItem",
-					]
+						"ChannelItem" // don't working properly
+					] */
 				};
 
 
@@ -219,12 +219,12 @@ module.exports = (_ => {
 
 			onStart() {
 
-	
+
 
 				this.saveBlackList(this.getBlackList());
 
 
-			
+
 				BDFDB.PatchUtils.patch(this, BDFDB.LibraryModules.GuildUtils, "setChannel", {
 					instead: e => {
 						let channelId = (VoiceUtils.getVoiceStateForUser(e.methodArguments[1]) || {}).channelId;
@@ -238,44 +238,48 @@ module.exports = (_ => {
 					}
 				});
 
-			
+
 				BDFDB.PatchUtils.patch(this, UnreadChannelUtils, "getMentionCount", {
 					after: e => {
 						return e.returnValue ? (this.isChannelHidden(e.methodArguments[0]) ? 0 : e.returnValue) : e.returnValue;
 					}
 				});
 
+				// ChannelItem module
+				const [module, key] = BdApi.Webpack.getWithKey(BdApi.Webpack.Filters.byStrings("canHaveDot", "unreadRelevant", "UNREAD_HIGHLIGHT"))
+				BdApi.Patcher.after(this.name, module, key, (_, args, ret) => this.processChannelItem(_, args, ret));
+ 
 				this.forceUpdateAll();
-			
-				
-			// another method to see blocked channels
-		/* 	
-				BDFDB.PatchUtils.patch(this, BdApi.findModuleByProps('getChannelPermissions'), 'can', {
-					after: e => {
-			
-						if (e.methodArguments[0] == DiscordConstants.Plq.VIEW_CHANNEL) {
-							
-							if (!e.returnValue) {
-								if (!hiddenChannelCache[e.methodArguments[1].guild_id]) {
-									hiddenChannelCache[e.methodArguments[1].guild_id] = [];
-								}
-								if (hiddenChannelCache[e.methodArguments[1].guild_id].indexOf(e.methodArguments[1].id) == -1) {
-									hiddenChannelCache[e.methodArguments[1].guild_id].push(e.methodArguments[1].id)
-									console.log(e.methodArguments[1]);// channel is hidden
-								}
-								return true;
-							
-							}
-							return true;
-						}
+
+
+				// another method to see blocked channels
+				/* 	
+						BDFDB.PatchUtils.patch(this, BdApi.findModuleByProps('getChannelPermissions'), 'can', {
+							after: e => {
 					
-						return e.returnValue;
+								if (e.methodArguments[0] == DiscordConstants.Plq.VIEW_CHANNEL) {
+									
+									if (!e.returnValue) {
+										if (!hiddenChannelCache[e.methodArguments[1].guild_id]) {
+											hiddenChannelCache[e.methodArguments[1].guild_id] = [];
+										}
+										if (hiddenChannelCache[e.methodArguments[1].guild_id].indexOf(e.methodArguments[1].id) == -1) {
+											hiddenChannelCache[e.methodArguments[1].guild_id].push(e.methodArguments[1].id)
+											console.log(e.methodArguments[1]);// channel is hidden
+										}
+										return true;
+									
+									}
+									return true;
+								}
+							
+								return e.returnValue;
+		
+								return true;
+							}
+						}) */
 
-						return true;
-					}
-				}) */
 
-			
 			}
 
 			rerenderMessageStore() {
@@ -305,6 +309,7 @@ module.exports = (_ => {
 			onStop() {
 				//BDFDB.PatchUtils.forceAllUpdates(this);
 				this.forceUpdateAll();
+				BdApi.Patcher.unpatchAll(this.name);
 				//BDFDB.DiscordUtils.rerenderAll();;
 
 			}
@@ -445,9 +450,9 @@ module.exports = (_ => {
 			}
 
 			processChannelsList(e) {
-			
-			
-				
+
+
+
 				if (!e.instance.props.guild || e.instance.props.guild.id.length < 16) return;
 				let show = !blackList.includes(e.instance.props.guild.id), sortAtBottom = this.settings.sortOrder.hidden == sortOrders.BOTTOM.value;
 
@@ -501,13 +506,11 @@ module.exports = (_ => {
 
 			}
 
-			processChannelItem(e) {
-
-				if (e.instance.props.channel && this.isChannelHidden(e.instance.props.channel.id)) {
-					if (!e.returnvalue) e.instance.props.className = BDFDB.DOMUtils.formatClassName(e.instance.props.className, '');
+			processChannelItem(_, [props], returnvalue) {
+				if (props.channel && this.isChannelHidden(props.channel.id)) {
+					if (!returnvalue) props.className = BDFDB.DOMUtils.formatClassName(props.className, '');
 					else {
-						let [children, index] = BDFDB.ReactUtils.findParent(e.returnvalue, { name: "ChannelItemIcon" });
-						let channelChildren = BDFDB.ReactUtils.findChild(e.returnvalue, { props: [["className", BDFDB.disCN.channelchildren]] });
+						let channelChildren = BDFDB.ReactUtils.findChild(returnvalue, { props: [["className", BDFDB.disCN.channelchildren]] });
 						if (channelChildren && channelChildren.props && channelChildren.props.children) {
 							channelChildren.props.children = [BDFDB.ReactUtils.createElement(BDFDB.LibraryComponents.TooltipContainer, {
 								text: BDFDB.LanguageUtils.LanguageStrings.CHANNEL_LOCKED_SHORT,
@@ -521,13 +524,13 @@ module.exports = (_ => {
 								})
 							})];
 						}
-						if (!(e.instance.props.channel.type == BDFDB.DiscordConstants.ChannelTypes.GUILD_VOICE && e.instance.props.connected)) {
-							let wrapper = BDFDB.ReactUtils.findChild(e.returnvalue, { props: [["className", ChannelClasses.wrapper]] });
+						if (!(props.channel.type == BDFDB.DiscordConstants.ChannelTypes.GUILD_VOICE && props.connected)) {
+							let wrapper = BDFDB.ReactUtils.findChild(returnvalue, { props: [["className", ChannelClasses.wrapper]] });
 							if (wrapper) {
 								wrapper.props.onMouseDown = event => BDFDB.ListenerUtils.stopEvent(event);
 								wrapper.props.onMouseUp = event => BDFDB.ListenerUtils.stopEvent(event);
-							}					
-							let mainContent = BDFDB.ReactUtils.findChild(e.returnvalue, { props: [["className", ChannelClasses.link]] });
+							}
+							let mainContent = BDFDB.ReactUtils.findChild(returnvalue, { props: [["className", ChannelClasses.link]] });
 							if (mainContent) {
 								mainContent.props.onClick = event => BDFDB.ListenerUtils.stopEvent(event);
 								mainContent.props.href = null;
@@ -542,7 +545,7 @@ module.exports = (_ => {
 			}
 
 			isChannelHidden(channelId) {
-			
+
 				let channel = BDFDB.LibraryStores.ChannelStore.getChannel(channelId);
 				if (!channel || !channel.guild_id) return false;
 				return hiddenChannelCache[channel.guild_id] && hiddenChannelCache[channel.guild_id].indexOf(channelId) > -1;
