@@ -1,6 +1,6 @@
 /**
  * @name FreeStickers
- * @version 2.0.6
+ * @version 2.0.7
  * @author bottom_text | Z-Team 
  * @description Makes available to send stickers (not animated) and any emojis everywhere like with nitro.
  * @source https://github.com/bottomtext228/BetterDiscord-Plugins/tree/main/Plugins/FreeStickers
@@ -44,7 +44,7 @@ module.exports = class FreeStickers {
         // Patch stickers
 
         // hook to allow send stickers
-        BdApi.Patcher.instead(this.name, this.stickerSendabilityWebpack.module, this.stickerSendabilityWebpack.functionName, (_, args, ret) => {
+        BdApi.Patcher.instead(this.name, this.stickerSendabilityWebpack, 'isSendableSticker', (_, args, ret) => {
             return true;
         });
 
@@ -126,40 +126,7 @@ module.exports = class FreeStickers {
         this.channelStoreWebpack = BdApi.Webpack.getByKeys('getChannel', 'getDMUserIds');
         this.customEmojieUtilities = BdApi.Webpack.getByKeys('getCustomEmojiById');
         this.stickerWebpack = BdApi.Webpack.getByKeys('getStickerById');
-
-        // Sticker module is hard to find, so use this
-        const functionToString = (() => {
-            const iframe = document.createElement('iframe');
-            iframe.style.display = 'none';
-            document.body.append(iframe);
-            const { toString } = iframe.contentWindow.Function;
-            iframe.remove();
-            return (f) => toString.call(f);
-        })();
-
-        const StickerSendabilityModule = (() => {
-            const filter = BdApi.Webpack.Filters.byProps("SENDABLE", "SENDABLE_WITH_PREMIUM", "NONSENDABLE");
-            return BdApi.Webpack.getModule(x => typeof x === 'object' && Object.values(x).some(filter));
-        })();
-
-        const [StickerSendabilityMangled, getStickerSendabilityMangled, isSendableStickerMangled] = (() => {
-            const StickerSendabilityModuleExports = Object.entries(StickerSendabilityModule);
-            return [
-                StickerSendabilityModuleExports.find(([_, o]) => o.SENDABLE !== undefined),
-                StickerSendabilityModuleExports.find(([_, f]) => {
-                    if (typeof f !== 'function') return false;
-                    const str = functionToString(f);
-                    return str.includes("canUseStickersEverywhere") && str.includes("NONSENDABLE");
-                }),
-                StickerSendabilityModuleExports.find(([_, f]) => {
-                    if (typeof f !== 'function') return false;
-                    const str = functionToString(f);
-                    return !str.includes("canUseStickersEverywhere") && str.includes("SENDABLE"); // find by code
-                })
-            ];
-        })();
-        this.stickerSendabilityWebpack = {module: StickerSendabilityModule, functionName: isSendableStickerMangled[0]};
-
+        this.stickerSendabilityWebpack = BdApi.Webpack.getByKeys('isSendableSticker', 'getStickerSendability');
     }
 
     stop() {
