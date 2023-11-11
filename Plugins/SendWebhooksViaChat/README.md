@@ -13,3 +13,6 @@ Allows you to send webhook messages via discord chat messages using `/command me
 
 
 ![Image3](./res/Screenshot_4.png)
+
+
+![Image4](./res/Screenshot_5.png)
