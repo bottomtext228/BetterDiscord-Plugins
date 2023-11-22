@@ -1,7 +1,7 @@
 /**
  * @name ShowHiddenChannelsRe
  * @author DevilBro + bottom_text | Z-Team
- * @version 1.0.4
+ * @version 1.0.5
  * @description Displays all hidden Channels, which can't be accessed due to Role Restrictions, this won't allow you to read them (impossible). Original plugin by DevilBro is taken down by himself due to BetterDiscord plugins rules. This is re-release version with fixes.
  * @updateUrl https://raw.githubusercontent.com/bottomtext228/BetterDiscord-Plugins/main/Plugins/ShowHiddenChannelsRe/ShowHiddenChannelsRe.plugin.js
  * @source https://github.com/bottomtext228/BetterDiscord-Plugins/tree/main/Plugins/ShowHiddenChannelsRe
@@ -14,7 +14,7 @@ module.exports = (_ => {
 		"info": {
 			"name": "ShowHiddenChannelsRe",
 			"author": "DevilBro + bottom_text | Z-Team",
-			"version": "1.0.4",
+			"version": "1.0.5",
 			"description": "Displays all hidden Channels, which can't be accessed due to Role Restrictions, this won't allow you to read them (impossible)"
 		}
 	};
@@ -245,9 +245,8 @@ module.exports = (_ => {
 					}
 				});
 
-				// ChannelItem module
-				const [module, key] = BdApi.Webpack.getWithKey(BdApi.Webpack.Filters.byStrings("canHaveDot", "unreadRelevant", "UNREAD_HIGHLIGHT"))
-				BdApi.Patcher.after(this.name, module, key, (_, args, ret) => this.processChannelItem(_, args, ret));
+				// https://cdn.discordapp.com/attachments/768531187110510602/1177000164033040445/image.png
+				BdApi.Patcher.after(this.name, BdApi.Webpack.getByKeys('ChannelItemIcon', 'default'), 'default', (_, args, ret) => this.processChannelItem(_, args, ret));
  
 				this.forceUpdateAll();
 
@@ -507,6 +506,7 @@ module.exports = (_ => {
 			}
 
 			processChannelItem(_, [props], returnvalue) {
+				console.log(_, props, returnvalue)
 				if (props.channel && this.isChannelHidden(props.channel.id)) {
 					if (!returnvalue) props.className = BDFDB.DOMUtils.formatClassName(props.className, '');
 					else {
