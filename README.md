@@ -9,3 +9,4 @@ List of my plugins for BetterDiscord
 * [ShowHiddenChannelsRe](https://github.com/bottomtext228/BetterDiscord-Plugins/tree/main/Plugins/ShowHiddenChannelsRe)
 * [SendWebhooksViaChat](https://github.com/bottomtext228/BetterDiscord-Plugins/tree/main/Plugins/SendWebhooksViaChat)
 * [CopyGIFLink](https://github.com/bottomtext228/BetterDiscord-Plugins/tree/main/Plugins/CopyGIFLink)
+* [BTPluginUpdater](https://github.com/bottomtext228/BetterDiscord-Plugins/tree/main/Plugins/BTPluginUpdater)
