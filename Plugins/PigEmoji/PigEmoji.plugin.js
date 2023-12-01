@@ -1,6 +1,6 @@
 /**
  * @name PigEmoji
- * @version 2.1.5
+ * @version 2.1.6
  * @author bottom_text | Z-Team 
  * @description Replaces emoji button with any emoji.
  * @source https://github.com/bottomtext228/BetterDiscord-Plugins/tree/main/Plugins/PigEmoji
@@ -18,7 +18,7 @@ module.exports = class PigEmoji {
         console.log(`${this.name}: started!`);
 
         this.findWebpacks();
-        
+
 
         /* TODO:
             * future: make ability to set custom svg images
@@ -47,7 +47,8 @@ module.exports = class PigEmoji {
         }
 
         // https://cdn.discordapp.com/attachments/768531187110510602/1046466928128045066/image.png
-        const buttonsContainter = buttonReactInstance.pendingProps.children[2];
+        const buttonsContainter = this.getButtonsReactInstance(buttonReactInstance);
+
 
         const emojiElement = await this.createEmojiButton(this.settings.emoji);
 
@@ -93,7 +94,6 @@ module.exports = class PigEmoji {
         return html;
     }
 
-
     shouldDrawEmojiButton(props) {
         if (props.channel.type == 1 || props.channel.type == 3) { // DM | Group chat
             return true;
@@ -104,6 +104,16 @@ module.exports = class PigEmoji {
             permission: 2048n // send message
         });
     }
+    // find buttons in the children list https://cdn.discordapp.com/attachments/768531187110510602/1180153067862229145/image.png
+    getButtonsReactInstance(vnode) {
+        for (let curr = vnode, max = 100; curr !== null && max--; curr = curr.return) {
+            const tree = curr?.pendingProps?.children;
+            let buttons;
+            if (Array.isArray(tree) && (buttons = tree.find(s => s?.props?.type && s.props.channel && s.type?.$$typeof))) {
+                return buttons;
+            }
+        }
+    }
 
     openExpressionPickerMenu(tab, props) {
         // if tab or props undefined/null/etc menu will be closed
@@ -113,7 +123,6 @@ module.exports = class PigEmoji {
     getExpressionPickerMenuState() {
         return this.expressionPickerWebpack.useExpressionPickerStore.getState();
     }
-
 
     getCurrentUser() {
         return this.userStoreWebpack.getCurrentUser();
@@ -199,13 +208,12 @@ module.exports = class PigEmoji {
                         return;
                     }
 
-                    const buttonReactInstance = BdApi.ReactUtils.getInternalInstance(button); // TODO: null here
+                    const buttonReactInstance = BdApi.ReactUtils.getInternalInstance(button); 
 
                     if (!buttonReactInstance) {
                         return;
                     }
-
-                    const buttonsContainter = buttonReactInstance.pendingProps.children[2];
+                    const buttonsContainter = this.getButtonsReactInstance(buttonReactInstance);
 
                     this.openExpressionPickerMenu('emoji', buttonsContainter.props.type);
                 } else {
@@ -292,7 +300,7 @@ module.exports = class PigEmoji {
         this.getURLWebpack = BdApi.Webpack.getByKeys('getURL');
         this.emojiUtilities = BdApi.Webpack.getByKeys('getByName');
         this.expressionPickerWebpack = BdApi.Webpack.getByKeys('toggleExpressionPicker');
-        
+
         this.classConstants = BdApi.Webpack.getByKeys('profileBioInput'); // css classes
         this.buttonConstants = BdApi.Webpack.getByKeys('lookBlank');
         this.inputConstants = BdApi.Webpack.getByKeys('inputMini', 'inputDefault');
