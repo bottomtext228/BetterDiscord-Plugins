@@ -1,6 +1,6 @@
 /**
  * @name FreeStickers
- * @version 2.0.8
+ * @version 2.0.9
  * @author bottom_text | Z-Team 
  * @description Makes available to send stickers (not animated) and any emojis everywhere like with nitro.
  * @source https://github.com/bottomtext228/BetterDiscord-Plugins/tree/main/Plugins/FreeStickers
@@ -10,17 +10,16 @@
 
 
 module.exports = class FreeStickers {
-	constructor(meta) {
-		for (let key in meta) {
-			this[key] = meta[key];
-		}
-	}
+    constructor(meta) {
+        for (let key in meta) {
+            this[key] = meta[key];
+        }
+    }
 
     start() {
         console.log(`${this.name}: started!`);
 
         this.findWebpacks();
-
 
         // Patch emojies 
 
@@ -32,8 +31,8 @@ module.exports = class FreeStickers {
         });
 
         // hook to allow adding emoji
-        BdApi.Patcher.after(this.name, this.emojiWebpack, 'getEmojiUnavailableReason', (_, [emojiId, channelId, intention, hook], ret) => {
-            return hook ? null : ret;
+        BdApi.Patcher.after(this.name, this.emojiWebpack, 'getEmojiUnavailableReason', (_, [{ emoji, channel, intention, canViewAndUsePackEmoji, hook }], ret) => {
+            return hook ? ret : null;
         });
 
         // hook to make all emojies non-disable in emoji picker menu
@@ -46,7 +45,6 @@ module.exports = class FreeStickers {
 
         // hook to allow send stickers
         BdApi.Patcher.instead(this.name, this.stickerSendabilityWebpack, 'isSendableSticker', (_, [sticker, user, channel, hook], original) => {
-            
             return hook ? original(sticker, user, channel) : true;
         });
 
@@ -76,22 +74,6 @@ module.exports = class FreeStickers {
             original(...args);
         });
 
-        // Patching permissions is not working anymore
-
-        /* 
-        BdApi.Patcher.after(this.name, this.permissionsWebpack, 'canUseStickersEverywhere', (_, args, ret) => {
-            return true;
-        });
-
-        BdApi.Patcher.after(this.name, this.permissionsWebpack, 'canUseEmojisEverywhere', (_, args, ret) => {
-            return true;
-        });
-
-        BdApi.Patcher.after(this.name, this.permissionsWebpack, 'canUseAnimatedEmojis', (_, args, ret) => {
-            return true;
-        }); 
-        */
-
     }
 
     isStickerAvailable(stickerId, channelId) {
@@ -106,14 +88,16 @@ module.exports = class FreeStickers {
         return this.getEmojiUnavailableReason(customEmoji.id, channelId) == null;
     }
 
-    getEmojiUnavailableReason(emojiId, channelId, intention){
-         return this.emojiWebpack.getEmojiUnavailableReason({
-             emoji: this.customEmojiUtilities.getCustomEmojiById(emojiId),
-             channel: this.channelStoreWebpack.getChannel(channelId),
-             intention: 3 // magic number
-         });
-         // return value == 2 - emoji blocked | value == null - available. (!) don't work with canUseStickersEverywhere() hook (!)
-    } 
+    getEmojiUnavailableReason(emojiId, channelId) {
+        return this.emojiWebpack.getEmojiUnavailableReason({
+            emoji: this.customEmojiUtilities.getCustomEmojiById(emojiId),
+            channel: this.channelStoreWebpack.getChannel(channelId),
+            intention: 3,  // magic number
+            canViewAndUsePackEmoji: this.inventoryGuildPackExperimentWebpack.getInventoryGuildPacksUserExperimentConfig({ user: this.userStoreWebpack.getCurrentUser(), autoTrackExposure: 0 }).viewAndUseEnabled,
+            hook: true
+        });
+        // return value == 2 - emoji blocked | value == null - available. (!) don't work with canUseStickersEverywhere() hook (!)
+    }
 
     findWebpacks() {
         this.userStoreWebpack = BdApi.Webpack.getStore('UserStore');
@@ -124,6 +108,7 @@ module.exports = class FreeStickers {
         this.customEmojiUtilities = BdApi.Webpack.getByKeys('getCustomEmojiById');
         this.stickerWebpack = BdApi.Webpack.getByKeys('getStickerById');
         this.stickerSendabilityWebpack = BdApi.Webpack.getByKeys('isSendableSticker', 'getStickerSendability');
+        this.inventoryGuildPackExperimentWebpack = BdApi.Webpack.getByKeys('getInventoryGuildPacksUserExperimentConfig')
     }
 
     stop() {
