@@ -1,6 +1,6 @@
 /**
  * @name FreeStickers
- * @version 2.0.9
+ * @version 2.1.0
  * @author bottom_text | Z-Team 
  * @description Makes available to send stickers (not animated) and any emojis everywhere like with nitro.
  * @source https://github.com/bottomtext228/BetterDiscord-Plugins/tree/main/Plugins/FreeStickers
@@ -23,20 +23,22 @@ module.exports = class FreeStickers {
 
         // Patch emojies 
 
-        // hook emoji query
-        BdApi.Patcher.after(this.name, this.fetchEmojiesWebpack, 'searchWithoutFetchingLatest', (_, args, ret) => {
-            ret.unlocked.push(...ret.locked);
-            ret.locked = [];
 
-        });
 
         // hook to allow adding emoji
         BdApi.Patcher.after(this.name, this.emojiWebpack, 'getEmojiUnavailableReason', (_, [{ emoji, channel, intention, canViewAndUsePackEmoji, hook }], ret) => {
+            // `hook` means that we call it by ourselves
+            if (!hook && intention == this.emojiInfoWebpack.EmojiIntention.REACTION) {
+                return ret;
+            }
             return hook ? ret : null;
         });
 
         // hook to make all emojies non-disable in emoji picker menu
-        BdApi.Patcher.after(this.name, this.emojiWebpack, 'isEmojiDisabled', (_, args, ret) => {
+        BdApi.Patcher.after(this.name, this.emojiWebpack, 'isEmojiDisabled', (_, [{ emoji, channel, intention, canViewAndUsePackEmoji }], ret) => {
+            if (intention == this.emojiInfoWebpack.EmojiIntention.REACTION) {
+                return ret;
+            }
             return false;
         });
 
@@ -45,6 +47,7 @@ module.exports = class FreeStickers {
 
         // hook to allow send stickers
         BdApi.Patcher.instead(this.name, this.stickerSendabilityWebpack, 'isSendableSticker', (_, [sticker, user, channel, hook], original) => {
+            // `hook` means that we call it by ourselves
             return hook ? original(sticker, user, channel) : true;
         });
 
@@ -63,7 +66,7 @@ module.exports = class FreeStickers {
             let match;
             while (match = regExp.exec(message.content)) {
                 const emojiId = match[1];
-                const customEmoji = this.customEmojiUtilities.getCustomEmojiById(emojiId);
+                const customEmoji = this.customEmojiUtilitiesWebpack.getCustomEmojiById(emojiId);
                 if (customEmoji && !this.isCustomEmojiAvailable(customEmoji, message.channelId)) {
                     const emojiSize = 48;
                     const emojiUrl = customEmoji.url.replace(/size=(\d+)/, `size=${emojiSize}`); // set the size
@@ -90,25 +93,24 @@ module.exports = class FreeStickers {
 
     getEmojiUnavailableReason(emojiId, channelId) {
         return this.emojiWebpack.getEmojiUnavailableReason({
-            emoji: this.customEmojiUtilities.getCustomEmojiById(emojiId),
+            emoji: this.customEmojiUtilitiesWebpack.getCustomEmojiById(emojiId),
             channel: this.channelStoreWebpack.getChannel(channelId),
-            intention: 3,  // magic number
+            intention: this.emojiInfoWebpack.EmojiIntention.CHAT,
             canViewAndUsePackEmoji: this.inventoryGuildPackExperimentWebpack.getInventoryGuildPacksUserExperimentConfig({ user: this.userStoreWebpack.getCurrentUser(), autoTrackExposure: 0 }).viewAndUseEnabled,
             hook: true
-        });
-        // return value == 2 - emoji blocked | value == null - available. (!) don't work with canUseStickersEverywhere() hook (!)
-    }
+        }); // returns value from this.emojiInfoWebpack.EmojiDisabledReasons
+    } 
 
     findWebpacks() {
         this.userStoreWebpack = BdApi.Webpack.getStore('UserStore');
-        this.fetchEmojiesWebpack = BdApi.Webpack.getByKeys('searchWithoutFetchingLatest');
         this.enqueWebpack = BdApi.Webpack.getByKeys('enqueue', 'draining');
         this.emojiWebpack = BdApi.Webpack.getByKeys('getEmojiUnavailableReason');
         this.channelStoreWebpack = BdApi.Webpack.getStore('ChannelStore');
-        this.customEmojiUtilities = BdApi.Webpack.getByKeys('getCustomEmojiById');
+        this.customEmojiUtilitiesWebpack = BdApi.Webpack.getByKeys('getCustomEmojiById');
         this.stickerWebpack = BdApi.Webpack.getByKeys('getStickerById');
         this.stickerSendabilityWebpack = BdApi.Webpack.getByKeys('isSendableSticker', 'getStickerSendability');
-        this.inventoryGuildPackExperimentWebpack = BdApi.Webpack.getByKeys('getInventoryGuildPacksUserExperimentConfig')
+        this.emojiInfoWebpack = BdApi.Webpack.getByKeys('EmojiIntention');
+        this.inventoryGuildPackExperimentWebpack = BdApi.Webpack.getByKeys('getInventoryGuildPacksUserExperimentConfig');
     }
 
     stop() {
