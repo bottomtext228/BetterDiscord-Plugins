@@ -1,6 +1,6 @@
 /**
  * @name BTPluginUpdater
- * @version 1.0.0
+ * @version 1.0.1
  * @author bottom_text
  * @description Updates bottom_text's plugins.
  * @updateUrl https://raw.githubusercontent.com/bottomtext228/BetterDiscord-Plugins/main/Plugins/BTPluginUpdater/BTPluginUpdater.plugin.js
@@ -14,10 +14,11 @@ module.exports = class BTPluginUpdater {
         const fs = require('fs');
         const path = require('path');
 
-        BdApi.Net.fetch('https://raw.githubusercontent.com/bottomtext228/BetterDiscord-Plugins/main/README.md').then(e => e.text().then(text => {
+        BdApi.Net.fetch('https://raw.githubusercontent.com/bottomtext228/BetterDiscord-Plugins/main/README.md', {
+            timeout: 60e3
+        }).then(e => e.text().then(text => {
             const matches = text.matchAll(/\* \[(\w+)\]\([^()]+\)/g); // fetch plugins list from the github and iterate it
-            for (const match of matches) {
-                const pluginName = match[1];
+            for (const [_, pluginName] of matches) {
                 const plugin = BdApi.Plugins.get(pluginName); // get the plugin if installed   
                 if (plugin) {
                     BdApi.Net.fetch(plugin.updateUrl).then(e => e.text()).then(pluginContent => { // fetch plugin from the github 
@@ -40,11 +41,13 @@ module.exports = class BTPluginUpdater {
                             })
                         }
                     }).catch(error => {
+                        console.error(error);
                         BdApi.UI.showToast(`${plugin.name} can't be updated! Try to update it manually.`, { type: 'error', timeout: 5e3 });
                     })
                 }
             }
         })).catch(error => {
+            console.error(error);
             BdApi.UI.showToast(`${this.name}: can't fetch plugins list! Try to update plugins manually.`, { type: 'error', timeout: 5e3 });
         })
     }
