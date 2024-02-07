@@ -1,6 +1,6 @@
 /**
  * @name FreeStickers
- * @version 2.1.0
+ * @version 2.1.1
  * @author bottom_text | Z-Team 
  * @description Makes available to send stickers (not animated) and any emojis everywhere like with nitro.
  * @source https://github.com/bottomtext228/BetterDiscord-Plugins/tree/main/Plugins/FreeStickers
@@ -96,7 +96,6 @@ module.exports = class FreeStickers {
             emoji: this.customEmojiUtilitiesWebpack.getCustomEmojiById(emojiId),
             channel: this.channelStoreWebpack.getChannel(channelId),
             intention: this.emojiInfoWebpack.EmojiIntention.CHAT,
-            canViewAndUsePackEmoji: this.inventoryGuildPackExperimentWebpack.getInventoryGuildPacksUserExperimentConfig({ user: this.userStoreWebpack.getCurrentUser(), autoTrackExposure: 0 }).viewAndUseEnabled,
             hook: true
         }); // returns value from this.emojiInfoWebpack.EmojiDisabledReasons
     } 
@@ -110,7 +109,6 @@ module.exports = class FreeStickers {
         this.stickerWebpack = BdApi.Webpack.getByKeys('getStickerById');
         this.stickerSendabilityWebpack = BdApi.Webpack.getByKeys('isSendableSticker', 'getStickerSendability');
         this.emojiInfoWebpack = BdApi.Webpack.getByKeys('EmojiIntention');
-        this.inventoryGuildPackExperimentWebpack = BdApi.Webpack.getByKeys('getInventoryGuildPacksUserExperimentConfig');
     }
 
     stop() {
