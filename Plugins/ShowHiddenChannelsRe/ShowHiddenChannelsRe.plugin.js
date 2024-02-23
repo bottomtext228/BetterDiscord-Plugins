@@ -1,7 +1,7 @@
 /**
  * @name ShowHiddenChannelsRe
  * @author DevilBro + bottom_text | Z-Team
- * @version 1.0.6
+ * @version 1.0.7
  * @description Displays all hidden Channels, which can't be accessed due to Role Restrictions, this won't allow you to read them (impossible). Original plugin by DevilBro is taken down by himself due to BetterDiscord plugins rules. This is re-release version with fixes.
  * @updateUrl https://raw.githubusercontent.com/bottomtext228/BetterDiscord-Plugins/main/Plugins/ShowHiddenChannelsRe/ShowHiddenChannelsRe.plugin.js
  * @source https://github.com/bottomtext228/BetterDiscord-Plugins/tree/main/Plugins/ShowHiddenChannelsRe
@@ -14,7 +14,7 @@ module.exports = (_ => {
 		"info": {
 			"name": "ShowHiddenChannelsRe",
 			"author": "DevilBro + bottom_text | Z-Team",
-			"version": "1.0.6",
+			"version": "1.0.7",
 			"description": "Displays all hidden Channels, which can't be accessed due to Role Restrictions, this won't allow you to read them (impossible)"
 		}
 	};
@@ -99,9 +99,9 @@ module.exports = (_ => {
 		};
 
 
-		const UnreadChannelUtils = BdApi.findModuleByProps('isForumPostUnread');
-		const VoiceUtils = BdApi.findModuleByProps('getVoiceStateForUser');
-		const ChannelClasses = { ...BdApi.findModuleByProps('channelEmoji', 'link', 'wrapper'), ...BdApi.findModuleByProps('containter', 'dropdownButton', 'tooltip') };
+		const UnreadChannelUtils = BdApi.Webpack.getByKeys('isForumPostUnread');
+		const VoiceUtils = BdApi.Webpack.getByKeys('getVoiceStateForUser');
+		const ChannelClasses = { ...BdApi.Webpack.getByKeys('link', 'wrapper'), ...BdApi.Webpack.getByKeys('container', 'dropdownButton', 'tooltip') };
 
 
 		const UserRowComponent = class UserRow extends BdApi.React.Component {
@@ -207,11 +207,9 @@ module.exports = (_ => {
 					before: [
 						"ChannelsList",
 						"VoiceUsers",
-/* 						"ChannelItem" */
-					]/* , 
-					after: [
-						"ChannelItem" // don't working properly
-					] */
+
+					]
+
 				};
 
 
@@ -247,55 +245,43 @@ module.exports = (_ => {
 
 				// https://cdn.discordapp.com/attachments/768531187110510602/1177000164033040445/image.png
 				BdApi.Patcher.after(this.name, BdApi.Webpack.getByKeys('ChannelItemIcon', 'default'), 'default', (_, args, ret) => this.processChannelItem(_, args, ret));
- 
+
 				this.forceUpdateAll();
 
 
 				// another method to see blocked channels
-				/* 	
-						BDFDB.PatchUtils.patch(this, BdApi.findModuleByProps('getChannelPermissions'), 'can', {
-							after: e => {
-					
-								if (e.methodArguments[0] == DiscordConstants.Plq.VIEW_CHANNEL) {
-									
-									if (!e.returnValue) {
-										if (!hiddenChannelCache[e.methodArguments[1].guild_id]) {
-											hiddenChannelCache[e.methodArguments[1].guild_id] = [];
-										}
-										if (hiddenChannelCache[e.methodArguments[1].guild_id].indexOf(e.methodArguments[1].id) == -1) {
-											hiddenChannelCache[e.methodArguments[1].guild_id].push(e.methodArguments[1].id)
-											console.log(e.methodArguments[1]);// channel is hidden
-										}
-										return true;
-									
+
+				/* 	BDFDB.PatchUtils.patch(this, BdApi.Webpack.getByKeys('getChannelPermissions'), 'can', {
+						after: e => {
+				
+							if (e.methodArguments[0] == DiscordConstants.Plq.VIEW_CHANNEL) {
+								
+								if (!e.returnValue) {
+									if (!hiddenChannelCache[e.methodArguments[1].guild_id]) {
+										hiddenChannelCache[e.methodArguments[1].guild_id] = [];
+									}
+									if (hiddenChannelCache[e.methodArguments[1].guild_id].indexOf(e.methodArguments[1].id) == -1) {
+										hiddenChannelCache[e.methodArguments[1].guild_id].push(e.methodArguments[1].id)
+										console.log(e.methodArguments[1]);// channel is hidden
 									}
 									return true;
+								
 								}
-							
-								return e.returnValue;
-		
 								return true;
 							}
-						}) */
+						
+							return e.returnValue;
+	
+							return true;
+						}
+					}) */
+
 
 
 			}
 
-			rerenderMessageStore() {
-				const container = ChannelClasses.container;
-				if (!container) return;
-				let LayerProviderIns = BdApi.ReactUtils.getOwnerInstance(container);
-				let LayerProviderPrototype = LayerProviderIns.__proto__
-				if (LayerProviderIns && LayerProviderPrototype) {
-					let unpatch = BdApi.Patcher.after(this.name, LayerProviderPrototype, 'render', (_, args, ret) => {
-						ret.props.children = typeof ret.props.children.children == "function" ? (_ => { return null; }) : [];
-						this.forceUpdate(LayerProviderIns);
-						unpatch();
-					});
-					this.forceUpdate(LayerProviderIns);
 
-				}
-			}
+
 
 			forceUpdate(...instances) {
 				for (let ins of instances.flat(10).filter(n => n)) {
@@ -306,11 +292,8 @@ module.exports = (_ => {
 			}
 
 			onStop() {
-				//BDFDB.PatchUtils.forceAllUpdates(this);
 				this.forceUpdateAll();
 				BdApi.Patcher.unpatchAll(this.name);
-				//BDFDB.DiscordUtils.rerenderAll();;
-
 			}
 
 			getSettingsPanel(collapseStates = {}) {
@@ -392,12 +375,12 @@ module.exports = (_ => {
 
 			forceUpdateAll() {
 				hiddenChannelCache = {};
-
-				this.rerenderMessageStore()
 				BDFDB.PatchUtils.forceAllUpdates(this);
-				BDFDB.ChannelUtils.rerenderAll(); // seems to be useless
-				//BDFDB.DiscordUtils.rerenderAll(); 
+				BDFDB.ChannelUtils.rerenderAll();
 
+				//rerenderMessageStore;
+				//this.rerenderMessageStore_();
+				//BDFDB.DiscordUtils.rerenderAll(true);
 			}
 
 			onUserContextMenu(e) {
@@ -425,6 +408,7 @@ module.exports = (_ => {
 
 			onGuildContextMenu(e) {
 				if (e.instance.props.guild) {
+					processChanne
 					let [children, index] = BDFDB.ContextMenuUtils.findItem(e.returnvalue, { id: "hide-muted-channels" });
 					if (index > -1) children.splice(index + 1, 0, BDFDB.ContextMenuUtils.createItem(BDFDB.LibraryComponents.MenuItems.MenuCheckboxItem, {
 						label: this.labels.context_hidehidden,
@@ -436,9 +420,8 @@ module.exports = (_ => {
 							this.saveBlackList(BDFDB.ArrayUtils.removeCopies(blackList));
 
 							BDFDB.PatchUtils.forceAllUpdates(this);
-							BDFDB.ChannelUtils.rerenderAll(true);
-
-							BDFDB.DiscordUtils.rerenderAll(true); // doesn't work without it
+							BDFDB.ChannelUtils.rerenderAll();
+							//BDFDB.DiscordUtils.rerenderAll(true); // doesn't work without it
 						}
 					}));
 				}
@@ -449,8 +432,6 @@ module.exports = (_ => {
 			}
 
 			processChannelsList(e) {
-
-
 
 				if (!e.instance.props.guild || e.instance.props.guild.id.length < 16) return;
 				let show = !blackList.includes(e.instance.props.guild.id), sortAtBottom = this.settings.sortOrder.hidden == sortOrders.BOTTOM.value;
@@ -467,6 +448,7 @@ module.exports = (_ => {
 								if (e.instance.props.guildChannels.hideMutedChannels && e.instance.props.guildChannels.mutedChannelIds.has(n.record.id)) n.renderLevel = renderLevels.DO_NOT_SHOW;
 								else if (category.isCollapsed) n.renderLevel = renderLevels.WOULD_SHOW_IF_UNCOLLAPSED;
 								else n.renderLevel = renderLevels.SHOW; // make them visible
+
 
 							}
 							else {
