@@ -1,6 +1,6 @@
 /**
  * @name OCS
- * @version 2.2.9
+ * @version 2.3.0
  * @description Orpheus Containment System.
  * @author bottom_text | Z-Team
  * @source https://github.com/bottomtext228/BetterDiscord-Plugins/tree/main/Plugins/OCS
@@ -59,7 +59,7 @@ module.exports = class OCS {
 
 		BdApi.Patcher.instead(
 			this.name,
-			this.ComponentDispatchWebpack,
+			this.ComponentDispatchWebpack.ComponentDispatch,
 			'dispatch',
 			(_, args, original) => this.onComponentDispatchDispatchEvent(args, original)
 		); // хук для отключения тряски приложения
@@ -237,7 +237,7 @@ module.exports = class OCS {
 		this.EmojiUtilitiesWebpack = { ...ZeresPluginLibrary.WebpackModules.getByProps('getURL'), ...ZeresPluginLibrary.WebpackModules.getByProps('getByName') };
 		this.GuildUtilitiesWebpack = ZeresPluginLibrary.WebpackModules.getByProps('getGuildEmoji');
 
-		this.ComponentDispatchWebpack = ZeresPluginLibrary.WebpackModules.getByProps('S', 'b').S // ...
+		this.ComponentDispatchWebpack = ZeresPluginLibrary.WebpackModules.getByProps('ComponentDispatch');
 		this.DispatchWebpack = ZeresPluginLibrary.WebpackModules.find(e => e.dispatch && !e.getCurrentUser);
 		this.GetGuildWebpack = ZeresPluginLibrary.WebpackModules.getByProps('getGuild', 'getGuildCount');
 		this.GetMembersWebpack = ZeresPluginLibrary.WebpackModules.getByProps('getMembers');
