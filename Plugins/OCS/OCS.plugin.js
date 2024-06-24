@@ -1,6 +1,6 @@
 /**
  * @name OCS
- * @version 2.3.0
+ * @version 2.3.1
  * @description Orpheus Containment System.
  * @author bottom_text | Z-Team
  * @source https://github.com/bottomtext228/BetterDiscord-Plugins/tree/main/Plugins/OCS
@@ -59,7 +59,7 @@ module.exports = class OCS {
 
 		BdApi.Patcher.instead(
 			this.name,
-			this.ComponentDispatchWebpack.ComponentDispatch,
+			this.ComponentDispatchWebpack,
 			'dispatch',
 			(_, args, original) => this.onComponentDispatchDispatchEvent(args, original)
 		); // хук для отключения тряски приложения
@@ -185,7 +185,7 @@ module.exports = class OCS {
 	}
 
 	sendReaction(channelId, messageId, emoji) {
-		this.ReactionUtilitiesWebpack.addReaction(channelId, messageId, this.prepareEmojiToSend(emoji), undefined, { burst: false });
+		this.ReactionUtilitiesWebpack.rU(channelId, messageId, this.prepareEmojiToSend(emoji), undefined, { burst: false });
 	}
 
 	prepareEmojiToSend(emoji, toString = false) { // tostring - bool. false - return object for addReaction, true - return string for message
@@ -193,13 +193,21 @@ module.exports = class OCS {
 		if (emoji.type == this.emojiType.unicode) {
 			const unicodeEmoji = this.EmojiUtilitiesWebpack.getByName(emoji.name);
 			if (unicodeEmoji) {
-				return toString ? unicodeEmoji.surrogates : this.ReactionUtilitiesWebpack.toReactionEmoji(unicodeEmoji);
+				return toString ? unicodeEmoji.surrogates : {
+					id: unicodeEmoji.id == undefined ? null : unicodeEmoji.id,
+					name: unicodeEmoji.surrogates,
+					animated: unicodeEmoji.animated,
+				};
 			}
 		}
 		else {
 			const customEmoji = this.getCustomEmojiById(emoji.id);
 			if (customEmoji) {
-				return toString ? `<${customEmoji.animated ? 'a' : ''}:${customEmoji.name}:${customEmoji.id}>` : this.ReactionUtilitiesWebpack.toReactionEmoji(customEmoji);
+				return toString ? `<${customEmoji.animated ? 'a' : ''}:${customEmoji.name}:${customEmoji.id}>` : {
+					id: customEmoji.id == undefined ? null : customEmoji.id,
+					name: customEmoji.name,
+					animated: customEmoji.animated,
+				};
 			}
 		}
 		return '';
@@ -208,6 +216,16 @@ module.exports = class OCS {
 	getCustomEmojiById(customEmojiId) {
 		return this.GuildUtilitiesWebpack.getCustomEmojiById(customEmojiId);
 	}
+
+	wrapElement(element) {
+        const wrap = (elements) => {
+            const domWrapper = BdApi.DOM.parseHTML(`<div class="dom-wrapper"></div>`);
+            for (let e = 0; e < elements.length; e++) domWrapper.appendChild(elements[e]);
+            return domWrapper;
+        }
+        if (Array.isArray(element)) element = wrap(element);
+        return BdApi.React.createElement(BdApi.ReactUtils.wrapElement(element));
+    }
 
 	createButton(label, callback, id) {
 		const ret = BdApi.DOM.parseHTML(`<button type="button" class="${this.ButtonConstansts.button} ${this.ButtonConstansts.lookFilled} ${this.ButtonConstansts.colorBrand} ${this.ButtonConstansts.sizeSmall} ${this.ButtonConstansts.grow}" ${(id ? 'id="' + id + '"' : '')}><div class="contents-3ca1mk">${label}</div></button>`);
@@ -233,11 +251,11 @@ module.exports = class OCS {
 
 	findWebpacks() {
 
-		this.ReactionUtilitiesWebpack = { ...ZeresPluginLibrary.WebpackModules.getByProps('addReaction', 'getReactors'), ...ZeresPluginLibrary.WebpackModules.getByProps('toReactionEmoji', 'getReactionEmojiName') };
+		this.ReactionUtilitiesWebpack = ZeresPluginLibrary.WebpackModules.getByProps('rU', 'wX');
 		this.EmojiUtilitiesWebpack = { ...ZeresPluginLibrary.WebpackModules.getByProps('getURL'), ...ZeresPluginLibrary.WebpackModules.getByProps('getByName') };
 		this.GuildUtilitiesWebpack = ZeresPluginLibrary.WebpackModules.getByProps('getGuildEmoji');
 
-		this.ComponentDispatchWebpack = ZeresPluginLibrary.WebpackModules.getByProps('ComponentDispatch');
+		this.ComponentDispatchWebpack = ZeresPluginLibrary.WebpackModules.getModule(m => m.S && m.b && m.S.dispatch).S;
 		this.DispatchWebpack = ZeresPluginLibrary.WebpackModules.find(e => e.dispatch && !e.getCurrentUser);
 		this.GetGuildWebpack = ZeresPluginLibrary.WebpackModules.getByProps('getGuild', 'getGuildCount');
 		this.GetMembersWebpack = ZeresPluginLibrary.WebpackModules.getByProps('getMembers');
@@ -247,7 +265,7 @@ module.exports = class OCS {
 		this.ButtonConstansts = ZeresPluginLibrary.WebpackModules.getByProps('lookBlank');
 
 		this.UserTagConstants = { ...ZeresPluginLibrary.WebpackModules.getByProps('userTagUsernameNoNickname'), ...ZeresPluginLibrary.WebpackModules.getByProps('defaultColor') };
-		this.InputConstants = { ...ZeresPluginLibrary.WebpackModules.getByProps('input', 'icon', 'close', 'pointer') }
+		this.InputConstants = { ...ZeresPluginLibrary.WebpackModules.getByProps('input', 'icon', 'pointer') }
 
 	}
 
@@ -319,10 +337,8 @@ module.exports = class OCS {
 			elements.push(input_name);
 			elements.push(membersTable);
 
-			ZeresPluginLibrary.Modals.showModal(this.labels.add_object, ZeresPluginLibrary.ReactTools.createWrappedElement(elements), {
-				confirmText: 'OK',
-				size: ZeresPluginLibrary.Modals.ModalSizes.SMALL,
-				red: false
+			BdApi.UI.showConfirmationModal(this.labels.add_object, this.wrapElement(elements), {
+				confirmText: 'OK',	
 			});
 
 		});
@@ -353,7 +369,7 @@ module.exports = class OCS {
 		if (this.sendedMessages.length > 0) {
 			const deleteButton =
 				BdApi.DOM.parseHTML(
-					`<button type="button" id="delete_button" style="width:565px"
+					`<button type="button" id="delete_button" style="width:565px; margin-top: 16px"
 				class="${this.ButtonConstansts.button} ${this.ButtonConstansts.lookFilled} ${this.ButtonConstansts.colorBrand} ${this.ButtonConstansts.sizeSmall} ${this.ButtonConstansts.grow}">
 				<div class="contents-3ca1mk">${this.labels.delete_button}</div>
 				</button>`
@@ -542,11 +558,9 @@ module.exports = class OCS {
 
 			elements.push(emojisQueryList);
 
-			ZeresPluginLibrary.Modals.showModal(this.labels.add_object_button, ZeresPluginLibrary.ReactTools.createWrappedElement(elements), {
+			BdApi.UI.showConfirmationModal(this.labels.add_object_button, ZeresPluginLibrary.ReactTools.createWrappedElement(elements), {
 				confirmText: this.labels.delete_object,
 				cancelText: this.labels.save_settings,
-				size: ZeresPluginLibrary.Modals.ModalSizes.SMALL,
-				red: false,
 				onConfirm: e => { // delete object
 					this.containedObjects.splice(objectIterator, 1);
 					this.saveSettings();
