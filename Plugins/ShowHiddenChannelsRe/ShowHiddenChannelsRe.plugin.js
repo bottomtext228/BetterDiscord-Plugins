@@ -1,7 +1,7 @@
 /**
  * @name ShowHiddenChannelsRe
  * @author DevilBro + bottom_text | Z-Team
- * @version 1.0.8
+ * @version 1.0.9
  * @description Displays all hidden Channels, which can't be accessed due to Role Restrictions, this won't allow you to read them (impossible). Original plugin by DevilBro is taken down by himself due to BetterDiscord plugins rules. This is re-release version with fixes.
  * @updateUrl https://raw.githubusercontent.com/bottomtext228/BetterDiscord-Plugins/main/Plugins/ShowHiddenChannelsRe/ShowHiddenChannelsRe.plugin.js
  * @source https://github.com/bottomtext228/BetterDiscord-Plugins/tree/main/Plugins/ShowHiddenChannelsRe
@@ -14,7 +14,7 @@ module.exports = (_ => {
 		"info": {
 			"name": "ShowHiddenChannelsRe",
 			"author": "DevilBro + bottom_text | Z-Team",
-			"version": "1.0.8",
+			"version": "1.0.9",
 			"description": "Displays all hidden Channels, which can't be accessed due to Role Restrictions, this won't allow you to read them (impossible)"
 		}
 	};
@@ -102,7 +102,7 @@ module.exports = (_ => {
 		const UnreadChannelUtils = BdApi.Webpack.getByKeys('isForumPostUnread');
 		const VoiceUtils = BdApi.Webpack.getByKeys('getVoiceStateForUser');
 		const ChannelClasses = { ...BdApi.Webpack.getByKeys('link', 'wrapper'), ...BdApi.Webpack.getByKeys('container', 'dropdownButton', 'tooltip') };
-
+		const UserProfileModalUtils = BdApi.Webpack.getByKeys('openUserProfileModal');
 
 		const UserRowComponent = class UserRow extends BdApi.React.Component {
 			componentDidMount() {
@@ -121,10 +121,10 @@ module.exports = (_ => {
 						children: BDFDB.ReactUtils.createElement(BDFDB.LibraryComponents.Avatars.Avatar, {
 							src: BDFDB.UserUtils.getAvatar(this.props.user.id),
 							status: BDFDB.UserUtils.getStatus(this.props.user.id),
-							size: BDFDB.LibraryComponents.AvatarConstants.Sizes.SIZE_40,
+							size: 'SIZE_40',
 							onClick: _ => {
 								if (accessModal) accessModal.props.onClose();
-								BDFDB.LibraryModules.UserProfileModalUtils.openUserProfileModal({
+								UserProfileModalUtils.openUserProfileModal({
 									userId: this.props.user.id,
 									guildId: this.props.guildId
 								});
@@ -207,11 +207,8 @@ module.exports = (_ => {
 					before: [
 						"ChannelsList",
 						"VoiceUsers",
-
 					]
-
 				};
-
 
 			}
 
@@ -243,11 +240,11 @@ module.exports = (_ => {
 					}
 				});
 
-				// https://cdn.discordapp.com/attachments/768531187110510602/1177000164033040445/image.png
-				BdApi.Patcher.after(this.name, BdApi.Webpack.getByKeys('ChannelItemIcon', 'default'), 'default', (_, args, ret) => this.processChannelItem(_, args, ret));
 
+				const [ChannelItemIcon, key] = BdApi.Webpack.getWithKey(BdApi.Webpack.Filters.byStrings('channel:', 'name:', 'muted:', 'connectDragPreview:', 'connected:'));
+				BdApi.Patcher.after(this.name, ChannelItemIcon, key, (_, args, ret) => this.processChannelItem(_, args, ret));
+				
 				this.forceUpdateAll();
-
 
 				// another method to see blocked channels
 
@@ -377,10 +374,6 @@ module.exports = (_ => {
 				hiddenChannelCache = {};
 				BDFDB.PatchUtils.forceAllUpdates(this);
 				BDFDB.ChannelUtils.rerenderAll();
-
-				//rerenderMessageStore;
-				//this.rerenderMessageStore_();
-				//BDFDB.DiscordUtils.rerenderAll(true);
 			}
 
 			onUserContextMenu(e) {
@@ -420,7 +413,6 @@ module.exports = (_ => {
 
 							BDFDB.PatchUtils.forceAllUpdates(this);
 							BDFDB.ChannelUtils.rerenderAll();
-							//BDFDB.DiscordUtils.rerenderAll(true); // doesn't work without it
 						}
 					}));
 				}
@@ -431,7 +423,6 @@ module.exports = (_ => {
 			}
 
 			processChannelsList(e) {
-
 				if (!e.instance.props.guild || e.instance.props.guild.id.length < 16) return;
 				let show = !blackList.includes(e.instance.props.guild.id), sortAtBottom = this.settings.sortOrder.hidden == sortOrders.BOTTOM.value;
 
@@ -533,7 +524,7 @@ module.exports = (_ => {
 
 			batchSetGuilds(settingsPanel, collapseStates, value) {
 				if (!value) {
-					for (const guild of BDFDB.LibraryModules.SortedGuildUtils.getFlattenedGuilds()) blackList.push(guild.id);
+					for (const guild of Object.values(BDFDB.LibraryStores.GuildStore.getGuilds())) blackList.push(guild.id);
 					this.saveBlackList(BDFDB.ArrayUtils.removeCopies(blackList));
 				}
 				else this.saveBlackList([]);
@@ -554,6 +545,7 @@ module.exports = (_ => {
 			openAccessModal(channel, allowed) {
 				let isThread = BDFDB.ChannelUtils.isThread(channel);
 				let guild = BDFDB.LibraryStores.GuildStore.getGuild(channel.guild_id);
+				let guildRoles = BDFDB.LibraryStores.GuildStore.getRoles(guild.id);
 				let myMember = guild && BDFDB.LibraryStores.GuildMemberStore.getMember(guild.id, BDFDB.UserUtils.me.id);
 
 
@@ -575,19 +567,18 @@ module.exports = (_ => {
 				};
 
 				let allowedRoles = [], allowedUsers = [], deniedRoles = [], deniedUsers = [], everyoneDenied = false;
-
 				for (let id in channel.permissionOverwrites) {
 
-					if ((channel.permissionOverwrites[id].type == overrideTypes.ROLE) && (guild.roles[id] && guild.roles[id].name != "@everyone") && checkAllowPerm(channel.permissionOverwrites[id].allow)) {
-						allowedRoles.push(Object.assign({ overwritten: myMember && myMember.roles.includes(id) && !allowed }, guild.roles[id]));
+					if ((channel.permissionOverwrites[id].type == overrideTypes.ROLE) && (guildRoles[id] && guildRoles[id].name != "@everyone") && checkAllowPerm(channel.permissionOverwrites[id].allow)) {
+						allowedRoles.push(Object.assign({ overwritten: myMember && myMember.roles.includes(id) && !allowed }, guildRoles[id]));
 					}
 					else if ((channel.permissionOverwrites[id].type == overrideTypes.MEMBER) && checkAllowPerm(channel.permissionOverwrites[id].allow)) {
 						addUser(id, allowedUsers);
 					}
 					if ((channel.permissionOverwrites[id].type == overrideTypes.ROLE) && checkDenyPerm(channel.permissionOverwrites[id].deny)) {
-						if (guild.roles[id]) {
-							deniedRoles.push(guild.roles[id]);
-							if (guild.roles[id].name == "@everyone") everyoneDenied = true;
+						if (guildRoles[id]) {
+							deniedRoles.push(guildRoles[id]);
+							if (guildRoles[id].name == "@everyone") everyoneDenied = true;
 						}
 					}
 					else if ((channel.permissionOverwrites[id].type == overrideTypes.MEMBER) && checkDenyPerm(channel.permissionOverwrites[id].deny)) {
@@ -596,7 +587,7 @@ module.exports = (_ => {
 				}
 
 				if (![].concat(allowedUsers, deniedUsers).find(user => user.id == guild.ownerId)) addUser(guild.ownerId, allowedUsers);
-				for (let id in guild.roles) if ((guild.roles[id].permissions | BDFDB.DiscordConstants.Permissions.ADMINISTRATOR) == guild.roles[id].permissions && ![].concat(allowedRoles, deniedRoles).find(role => role && role.id == id)) allowedRoles.push(Object.assign({ overwritten: myMember && myMember.roles.includes(id) && !allowed }, guild.roles[id]));
+				for (let id in guildRoles) if ((guildRoles[id].permissions | BDFDB.DiscordConstants.Permissions.ADMINISTRATOR) == guildRoles[id].permissions && ![].concat(allowedRoles, deniedRoles).find(role => role && role.id == id)) allowedRoles.push(Object.assign({ overwritten: myMember && myMember.roles.includes(id) && !allowed }, guildRoles[id]));
 				if (allowed && !everyoneDenied) allowedRoles.push({ name: "@everyone" });
 
 				let allowedElements = [], deniedElements = [];
