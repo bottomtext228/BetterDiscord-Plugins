@@ -1,6 +1,6 @@
 /**
  * @name PigEmoji
- * @version 2.1.6
+ * @version 2.1.7
  * @author bottom_text | Z-Team 
  * @description Replaces emoji button with any emoji.
  * @source https://github.com/bottomtext228/BetterDiscord-Plugins/tree/main/Plugins/PigEmoji
@@ -98,7 +98,7 @@ module.exports = class PigEmoji {
         if (props.channel.type == 1 || props.channel.type == 3) { // DM | Group chat
             return true;
         }
-        return this.permissionsWebpack.can({
+        return this.permissionsWebpack.BT({
             context: props.channel,
             user: this.getCurrentUser(),
             permission: 2048n // send message
@@ -117,11 +117,11 @@ module.exports = class PigEmoji {
 
     openExpressionPickerMenu(tab, props) {
         // if tab or props undefined/null/etc menu will be closed
-        this.expressionPickerWebpack.toggleExpressionPicker(tab, props);
+        this.expressionPickerWebpack.RO(tab, props);
     }
 
     getExpressionPickerMenuState() {
-        return this.expressionPickerWebpack.useExpressionPickerStore.getState();
+        return this.expressionPickerWebpack.Iu.getState();
     }
 
     getCurrentUser() {
@@ -208,7 +208,7 @@ module.exports = class PigEmoji {
                         return;
                     }
 
-                    const buttonReactInstance = BdApi.ReactUtils.getInternalInstance(button); 
+                    const buttonReactInstance = BdApi.ReactUtils.getInternalInstance(button);
 
                     if (!buttonReactInstance) {
                         return;
@@ -295,11 +295,11 @@ module.exports = class PigEmoji {
     }
 
     findWebpacks() {
-        this.permissionsWebpack = BdApi.Webpack.getByKeys('areChannelsLocked');
+        this.permissionsWebpack = BdApi.Webpack.getByKeys('uB', 'BT'); // BT = can
         this.userStoreWebpack = BdApi.Webpack.getByKeys('getCurrentUser');
         this.getURLWebpack = BdApi.Webpack.getByKeys('getURL');
         this.emojiUtilities = BdApi.Webpack.getByKeys('getByName');
-        this.expressionPickerWebpack = BdApi.Webpack.getByKeys('toggleExpressionPicker');
+        this.expressionPickerWebpack = BdApi.Webpack.getByKeys('RO', 'Iu');
 
         this.classConstants = BdApi.Webpack.getByKeys('profileBioInput'); // css classes
         this.buttonConstants = BdApi.Webpack.getByKeys('lookBlank');
