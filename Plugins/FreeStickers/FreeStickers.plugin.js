@@ -1,6 +1,6 @@
 /**
  * @name FreeStickers
- * @version 2.1.1
+ * @version 2.1.2
  * @author bottom_text | Z-Team 
  * @description Makes available to send stickers (not animated) and any emojis everywhere like with nitro.
  * @source https://github.com/bottomtext228/BetterDiscord-Plugins/tree/main/Plugins/FreeStickers
@@ -21,14 +21,32 @@ module.exports = class FreeStickers {
 
         this.findWebpacks();
 
-        // Patch emojies 
+        // removes lock from guild icons in emoji picker menu
+        const [EmojiPickerGuildLocks, key] = BdApi.Webpack.getWithKey(BdApi.Webpack.Filters.byStrings('.activeCategoryIndex)', '.scrollToSectionTop('));
+        BdApi.Patcher.before(this.name, EmojiPickerGuildLocks, key, (_, [props]) => {
+            props.categories.forEach(category => {
+                if (category.type == 'GUILD') {
+                    category.isNitroLocked = false;
+                }
+            })
+        }
+        );
 
-
+        // removes nitro upsell in emoji picker menu
+        const [EmojiPickerNitroUpsell, key1] = BdApi.Webpack.getWithKey(BdApi.Webpack.Filters.byStrings('sectionDescriptors', 'PREMIUM_UPSELL_VIEWED'));
+        BdApi.Patcher.before(this.name, EmojiPickerNitroUpsell, key1, (_, [props]) => {
+            props.sectionDescriptors.forEach(category => {
+                if (category.type == 'GUILD') {
+                    category.isNitroLocked = false;
+                }
+            });
+        }
+        );
 
         // hook to allow adding emoji
         BdApi.Patcher.after(this.name, this.emojiWebpack, 'getEmojiUnavailableReason', (_, [{ emoji, channel, intention, canViewAndUsePackEmoji, hook }], ret) => {
             // `hook` means that we call it by ourselves
-            if (!hook && intention == this.emojiInfoWebpack.EmojiIntention.REACTION) {
+            if (!hook && intention == 'REACTION') {
                 return ret;
             }
             return hook ? ret : null;
@@ -36,7 +54,7 @@ module.exports = class FreeStickers {
 
         // hook to make all emojies non-disable in emoji picker menu
         BdApi.Patcher.after(this.name, this.emojiWebpack, 'isEmojiDisabled', (_, [{ emoji, channel, intention, canViewAndUsePackEmoji }], ret) => {
-            if (intention == this.emojiInfoWebpack.EmojiIntention.REACTION) {
+            if (intention == 'REACTION') {
                 return ret;
             }
             return false;
@@ -46,7 +64,7 @@ module.exports = class FreeStickers {
         // Patch stickers
 
         // hook to allow send stickers
-        BdApi.Patcher.instead(this.name, this.stickerSendabilityWebpack, 'isSendableSticker', (_, [sticker, user, channel, hook], original) => {
+        BdApi.Patcher.instead(this.name, this.stickerSendabilityWebpack, 'kl', (_, [sticker, user, channel, hook], original) => {
             // `hook` means that we call it by ourselves
             return hook ? original(sticker, user, channel) : true;
         });
@@ -69,7 +87,7 @@ module.exports = class FreeStickers {
                 const customEmoji = this.customEmojiUtilitiesWebpack.getCustomEmojiById(emojiId);
                 if (customEmoji && !this.isCustomEmojiAvailable(customEmoji, message.channelId)) {
                     const emojiSize = 48;
-                    const emojiUrl = customEmoji.url.replace(/size=(\d+)/, `size=${emojiSize}`); // set the size
+                    const emojiUrl = `https://cdn.discordapp.com/emojis/${emojiId}.webp?size=${emojiSize}&quality=lossless`;
                     message.content = message.content.replace(match[0], emojiUrl); // replace emoji code with url
                 }
             }
@@ -83,7 +101,7 @@ module.exports = class FreeStickers {
         const currentUser = this.userStoreWebpack.getCurrentUser();
         const channel = this.channelStoreWebpack.getChannel(channelId);
         const sticker = this.stickerWebpack.getStickerById(stickerId);
-        return this.stickerSendabilityWebpack.isSendableSticker(sticker, currentUser, channel, true);
+        return this.stickerSendabilityWebpack.kl(sticker, currentUser, channel, true);
 
     }
 
@@ -95,10 +113,10 @@ module.exports = class FreeStickers {
         return this.emojiWebpack.getEmojiUnavailableReason({
             emoji: this.customEmojiUtilitiesWebpack.getCustomEmojiById(emojiId),
             channel: this.channelStoreWebpack.getChannel(channelId),
-            intention: this.emojiInfoWebpack.EmojiIntention.CHAT,
+            intention: 'CHAT',
             hook: true
-        }); // returns value from this.emojiInfoWebpack.EmojiDisabledReasons
-    } 
+        }); 
+    }
 
     findWebpacks() {
         this.userStoreWebpack = BdApi.Webpack.getStore('UserStore');
@@ -107,8 +125,8 @@ module.exports = class FreeStickers {
         this.channelStoreWebpack = BdApi.Webpack.getStore('ChannelStore');
         this.customEmojiUtilitiesWebpack = BdApi.Webpack.getByKeys('getCustomEmojiById');
         this.stickerWebpack = BdApi.Webpack.getByKeys('getStickerById');
-        this.stickerSendabilityWebpack = BdApi.Webpack.getByKeys('isSendableSticker', 'getStickerSendability');
-        this.emojiInfoWebpack = BdApi.Webpack.getByKeys('EmojiIntention');
+        // const [StickerSendability, getStickerSendability] = BdApi.Webpack.getWithKey(BdApi.Webpack.Filters.byStrings('canUseCustomStickersEverywhere', 'USE_EXTERNAL_STICKERS'))
+        this.stickerSendabilityWebpack = BdApi.Webpack.getByKeys('kl', 'cO'); // kl = isSendableSticker, cO = getStickerSendability
     }
 
     stop() {
