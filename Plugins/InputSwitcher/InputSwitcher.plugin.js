@@ -1,6 +1,6 @@
 /**
  * @name InputSwitcher
- * @version 1.3.2
+ * @version 1.3.3
  * @author bottom_text | Z-Team 
  * @description Switches the keyboard layout(RU & EN)/case of the message.
  * @source https://github.com/bottomtext228/BetterDiscord-Plugins/tree/main/Plugins/InputSwitcher
@@ -55,9 +55,10 @@ module.exports = (_ => {
         return class InputSwitcher extends Plugin {
 
             onStart() {
+
                 this.UserStore = BdApi.findModuleByProps('getUser', 'getCurrentUser');
                 this.MessageActions = BdApi.findModuleByProps('sendMessage', 'editMessage');
-                this.UserTagConstants = { ...ZeresPluginLibrary.WebpackModules.getByProps('userTagUsernameNoNickname'), ...ZeresPluginLibrary.WebpackModules.getByProps('defaultColor') };
+                this.UserTagConstants = { ...BdApi.findModuleByProps('userTagUsernameNoNickname'), ...BdApi.findModuleByProps('defaultColor') };
                 this.SlateConstants = BdApi.findModuleByProps('slateTextArea', 'slateContainer');
 
 
@@ -444,4 +445,3 @@ module.exports = (_ => {
         };
     })(window.BDFDB_Global.PluginUtils.buildPlugin(changeLog));
 })();
-
