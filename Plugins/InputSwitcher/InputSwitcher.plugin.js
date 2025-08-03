@@ -1,6 +1,6 @@
 /**
  * @name InputSwitcher
- * @version 1.3.3
+ * @version 1.3.4
  * @author bottom_text | Z-Team 
  * @description Switches the keyboard layout(RU & EN)/case of the message.
  * @source https://github.com/bottomtext228/BetterDiscord-Plugins/tree/main/Plugins/InputSwitcher
@@ -66,7 +66,7 @@ module.exports = (_ => {
                 const defaultSettings = {
                     bindings: {
                         language: {
-                            name: 'Languange',
+                            name: 'Language',
                             keycombo: [17, 88]
                         },
                         case: {
@@ -246,7 +246,7 @@ module.exports = (_ => {
                                 </span>
                             </span>
 			            </div>
-                        <div id="message_content" style="color: var(--text-normal)">                                                                   
+                        <div id="message_content" style="color: var(--text-default)">                                                                   
                         </div>  	
 		            </div>`;
 
