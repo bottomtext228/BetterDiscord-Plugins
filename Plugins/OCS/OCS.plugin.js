@@ -1,6 +1,6 @@
 /**
  * @name OCS
- * @version 2.3.1
+ * @version 2.3.2
  * @description Orpheus Containment System.
  * @author bottom_text | Z-Team
  * @source https://github.com/bottomtext228/BetterDiscord-Plugins/tree/main/Plugins/OCS
@@ -15,18 +15,6 @@ module.exports = class OCS {
 		}
 	}
 	start() {
-
-		const libraries = [
-			{
-				name: 'ZeresPluginLibrary',
-				url: 'https://raw.githubusercontent.com/rauenzi/BDPluginLibrary/master/release/0PluginLibrary.plugin.js',
-				filename: '0PluginLibrary.plugin.js'
-			}
-		];
-		if (!this.checkLibraries(libraries)) {
-			return;
-		}
-
 		console.log(`${this.name}: started!`);
 
 		this.findWebpacks();
@@ -34,6 +22,7 @@ module.exports = class OCS {
 		this.loadSettings();
 		this.labels = this.setLabelsByLanguage();
 		this.sendedMessages = [];
+		this.previousMessageContent = '';
 
 		this.emojiType = {
 			unicode: 0,
@@ -44,7 +33,6 @@ module.exports = class OCS {
 			reactions: 0,
 			message: 1
 		}
-
 
 		/* 90% of the code is old and pretty bad (settings menu). I won't rewrite it. :trolling: */
 
@@ -64,7 +52,6 @@ module.exports = class OCS {
 			(_, args, original) => this.onComponentDispatchDispatchEvent(args, original)
 		); // хук для отключения тряски приложения
 
-
 	}
 
 	onDispatchEvent(args) { // обработчик событий 
@@ -73,26 +60,16 @@ module.exports = class OCS {
 			return;
 
 		if (dispatch.type == 'MESSAGE_CREATE') {
+			const currentObject = this.containedObjects.find(object => object.id == dispatch.message.author.id);
 
-			const isLocalUser = dispatch.message.author.id == this.getCurrentUser().id;
-			const currentObject = this.containedObjects.find(object => { // HERE
-				if (object.id == dispatch.message.author.id) {
-					if (isLocalUser) {
-						if (dispatch.optimistic) { // избегаем спама при работе на локального пользователя
-							return false;
-						}
-					}
-					return true;
-				}
-			})
 			if (currentObject) {
 
 				if (currentObject.method == this.containingMethod.reactions) {
 					const sendAsync = async () => {
 						const wait = (ms) => {
-							return new Promise((resolve, reject) => {
+							return new Promise((resolve) => {
 								setTimeout(resolve, ms);
-							})
+							});
 						}
 						for (const reaction of currentObject.reactions) {
 							this.sendReaction(dispatch.message.channel_id, dispatch.message.id, reaction);
@@ -101,27 +78,28 @@ module.exports = class OCS {
 					}
 					sendAsync();
 				} else if (currentObject.method == this.containingMethod.message) {
-					var message = '';
+					var reactionMessage = '';
 					currentObject.reactions.forEach(reaction => {
-						message += this.prepareEmojiToSend(reaction, true) + ' ';
+						reactionMessage += this.prepareEmojiToSend(reaction, true) + ' ';
 					});
-					if (!isLocalUser || !this.sendedMessages.some(e => e.messageId == dispatch.message.id)) { // избегаем "рекурсии" при работе на локального пользователя
-						this.sendMessage(dispatch.message.channel_id, message, (response) => {
-							if (response.ok) {
-								if (this.sendedMessages.length >= 75) { // MAX_SIZE. Prevent memory leaks
-									const message = this.sendedMessages.shift();
-									this.deleteMessage(message.channelId, message.messageId);
-
-								} // чтобы удалить свои сообщения в последствии надо сохранить их id 
-								this.sendedMessages.push({
-									messageId: response.body.id,
-									repliedMessageId: dispatch.message.id,
-									channelId: dispatch.message.channel_id
-								});
+					this.previousMessageContent = reactionMessage;
+					this.sendMessage(dispatch.message.channel_id, reactionMessage, (response) => {
+						if (response.ok) {
+							if (this.sendedMessages.length >= 75) { // MAX_SIZE. Prevent memory leaks
+								const message = this.sendedMessages.shift();
+								this.deleteMessage(message.channelId, message.messageId);
 
 							}
-						});
-					}
+							// чтобы удалить свои сообщения в последствии надо сохранить их id 
+							this.sendedMessages.push({
+								messageId: response.body.id,
+								repliedMessageId: dispatch.message.id,
+								channelId: dispatch.message.channel_id
+							});
+
+						}
+					});
+
 				}
 
 			}
@@ -140,13 +118,13 @@ module.exports = class OCS {
 	}
 
 	sendMessage(channelId, content, responseCallback) {
- 		this.MessageQueueWebpack.enqueue({
+		this.MessageQueueWebpack.enqueue({
 			type: 0,
 			message: {
 				channelId: channelId,
 				content: content,
 			} // callback is called when we get server's response
-		}, typeof (responseCallback) == 'function' ? responseCallback : () => { }); 
+		}, typeof (responseCallback) == 'function' ? responseCallback : () => { });
 	}
 
 	deleteMessage(channelId, messageId) {
@@ -173,8 +151,12 @@ module.exports = class OCS {
 		return this.GetUserWebpack.getUser(id);
 	}
 
-	getEmojiUrl(emojiSurrogate) { // example: '🐖' -> '/assets/d083412544c302d290775006877f6202.svg'
+	getEmojiUrlFromSurrogate(emojiSurrogate) { // example: '🐖' -> '/assets/d083412544c302d290775006877f6202.svg'
 		return this.EmojiUtilitiesWebpack.getURL(emojiSurrogate)
+	}
+
+	getCustomEmojiUrl(customEmojiId) {
+		return this.UrlUtilitiesWebpack.getEmojiURL({ id: customEmojiId, size: 34 });
 	}
 
 	onComponentDispatchDispatchEvent(args, callDefault) {
@@ -189,7 +171,6 @@ module.exports = class OCS {
 	}
 
 	prepareEmojiToSend(emoji, toString = false) { // tostring - bool. false - return object for addReaction, true - return string for message
-
 		if (emoji.type == this.emojiType.unicode) {
 			const unicodeEmoji = this.EmojiUtilitiesWebpack.getByName(emoji.name);
 			if (unicodeEmoji) {
@@ -218,14 +199,14 @@ module.exports = class OCS {
 	}
 
 	wrapElement(element) {
-        const wrap = (elements) => {
-            const domWrapper = BdApi.DOM.parseHTML(`<div class="dom-wrapper"></div>`);
-            for (let e = 0; e < elements.length; e++) domWrapper.appendChild(elements[e]);
-            return domWrapper;
-        }
-        if (Array.isArray(element)) element = wrap(element);
-        return BdApi.React.createElement(BdApi.ReactUtils.wrapElement(element));
-    }
+		const wrap = (elements) => {
+			const domWrapper = BdApi.DOM.parseHTML(`<div class="dom-wrapper"></div>`);
+			for (let e = 0; e < elements.length; e++) domWrapper.appendChild(elements[e]);
+			return domWrapper;
+		}
+		if (Array.isArray(element)) element = wrap(element);
+		return BdApi.React.createElement(BdApi.ReactUtils.wrapElement(element));
+	}
 
 	createButton(label, callback, id) {
 		const ret = BdApi.DOM.parseHTML(`<button type="button" class="${this.ButtonConstansts.button} ${this.ButtonConstansts.lookFilled} ${this.ButtonConstansts.colorBrand} ${this.ButtonConstansts.sizeSmall} ${this.ButtonConstansts.grow}" ${(id ? 'id="' + id + '"' : '')}><div class="contents-3ca1mk">${label}</div></button>`);
@@ -251,21 +232,21 @@ module.exports = class OCS {
 
 	findWebpacks() {
 
-		this.ReactionUtilitiesWebpack = ZeresPluginLibrary.WebpackModules.getByProps('rU', 'wX');
-		this.EmojiUtilitiesWebpack = { ...ZeresPluginLibrary.WebpackModules.getByProps('getURL'), ...ZeresPluginLibrary.WebpackModules.getByProps('getByName') };
-		this.GuildUtilitiesWebpack = ZeresPluginLibrary.WebpackModules.getByProps('getGuildEmoji');
+		this.ReactionUtilitiesWebpack = BdApi.Webpack.getByKeys('rU', 'wX');
+		this.EmojiUtilitiesWebpack = { ...BdApi.Webpack.getByKeys('getURL'), ...BdApi.Webpack.getByKeys('getByName') };
+		this.GuildUtilitiesWebpack = BdApi.Webpack.getByKeys('getGuildEmoji');
+		this.UrlUtilitiesWebpack = BdApi.Webpack.getByKeys('getEmojiURL');
+		this.ComponentDispatchWebpack = BdApi.Webpack.getModule(m => m.S && m.b && m.S.dispatch).S;
+		this.DispatchWebpack = BdApi.Webpack.getModule(e => e.dispatch && !e.getCurrentUser);
+		this.GetGuildWebpack = BdApi.Webpack.getByKeys('getGuild', 'getGuildCount');
+		this.GetMembersWebpack = BdApi.Webpack.getByKeys('getMembers');
+		this.GetUserWebpack = BdApi.Webpack.getByKeys('getUser', 'getCurrentUser');
+		this.MessageQueueWebpack = BdApi.Webpack.getByKeys('enqueue', 'draining');
+		this.MessageUtilitiesWebpack = BdApi.Webpack.getByKeys('deleteMessage', 'sendMessage', 'editMessage');
+		this.ButtonConstansts = BdApi.Webpack.getByKeys('lookBlank');
 
-		this.ComponentDispatchWebpack = ZeresPluginLibrary.WebpackModules.getModule(m => m.S && m.b && m.S.dispatch).S;
-		this.DispatchWebpack = ZeresPluginLibrary.WebpackModules.find(e => e.dispatch && !e.getCurrentUser);
-		this.GetGuildWebpack = ZeresPluginLibrary.WebpackModules.getByProps('getGuild', 'getGuildCount');
-		this.GetMembersWebpack = ZeresPluginLibrary.WebpackModules.getByProps('getMembers');
-		this.GetUserWebpack = ZeresPluginLibrary.WebpackModules.getByProps('getUser', 'getCurrentUser');
-		this.MessageQueueWebpack = ZeresPluginLibrary.WebpackModules.getByProps('enqueue', 'draining');
-		this.MessageUtilitiesWebpack = ZeresPluginLibrary.WebpackModules.getByProps('deleteMessage', 'sendMessage', 'editMessage');
-		this.ButtonConstansts = ZeresPluginLibrary.WebpackModules.getByProps('lookBlank');
-
-		this.UserTagConstants = { ...ZeresPluginLibrary.WebpackModules.getByProps('userTagUsernameNoNickname'), ...ZeresPluginLibrary.WebpackModules.getByProps('defaultColor') };
-		this.InputConstants = { ...ZeresPluginLibrary.WebpackModules.getByProps('input', 'icon', 'pointer') }
+		this.UserTagConstants = { ...BdApi.Webpack.getByKeys('userTagUsernameNoNickname'), ...BdApi.Webpack.getByKeys('defaultColor') };
+		this.InputConstants = BdApi.Webpack.getByKeys('input', 'inner', 'close');
 
 	}
 
@@ -288,7 +269,7 @@ module.exports = class OCS {
 		const allUsers = [];
 		this.allEmojis = [];
 
-		const html = ZeresPluginLibrary.DOMTools.createElement(menuHTML);
+		const html = BdApi.DOM.parseHTML(menuHTML);
 
 
 		const buttons = Array.from(html.querySelectorAll('button'));
@@ -300,10 +281,9 @@ module.exports = class OCS {
 			const userToAdd = BdApi.DOM.parseHTML(`<div id="usertoadd"></div>`);
 			const input_id = this.createInput(this.labels.input_id, 'input_id', () => {
 				const userIdToFind = document.getElementById('input_id').value.trim();
-				if (userIdToFind == '')
-					return;
+				if (userIdToFind == '') return;
 				const user = this.getUser(userIdToFind)
-				if (user) {
+				if (user && user.id != this.getCurrentUser().id) {
 					this.renderUserToAdd(user);
 				}
 			});
@@ -315,13 +295,14 @@ module.exports = class OCS {
 
 				const usernameToFind = document.getElementById('input_name').value.trim();
 
-				if (usernameToFind == '')
-					return;
+				if (usernameToFind == '') return;
+
 				membersTable.innerHTML = '';
+
 				for (var membersIterator = 0; membersIterator < allUsers.length; membersIterator++) {
 					const member = allUsers[membersIterator];
 
-					if (member.username.toLowerCase().search(usernameToFind.toLowerCase()) != -1) {
+					if (member.username.toLowerCase().search(usernameToFind.toLowerCase()) != -1 && member.id != this.getCurrentUser().id) {
 						this.renderUserToAdd(member);
 					}
 				}
@@ -338,7 +319,7 @@ module.exports = class OCS {
 			elements.push(membersTable);
 
 			BdApi.UI.showConfirmationModal(this.labels.add_object, this.wrapElement(elements), {
-				confirmText: 'OK',	
+				confirmText: 'OK',
 			});
 
 		});
@@ -363,8 +344,8 @@ module.exports = class OCS {
 			this.allEmojis.push(...this.GuildUtilitiesWebpack.getGuildEmoji(guildId).map(e => { return { name: e.name, id: e.id, type: this.emojiType.custom } }));
 
 		} // get all unicode emojis
-		this.allEmojis.push(...this.EmojiUtilitiesWebpack.all().map(e => { return { name: e.uniqueName, type: this.emojiType.unicode } }));
 
+		this.EmojiUtilitiesWebpack.forEach(e => this.allEmojis.push({ name: e.uniqueName, type: this.emojiType.unicode }));
 
 		if (this.sendedMessages.length > 0) {
 			const deleteButton =
@@ -394,14 +375,22 @@ module.exports = class OCS {
 
 	renderContainedObject(objectIterator, html) {
 
+		const currentObject = this.containedObjects[objectIterator];
+
+		const user = this.getUser(currentObject.id);
+
+		if (!user) {
+			return;
+		}
+
 		const popoutHTML =
 			`<div>	
 				<div id="containedUser" style="margin-top: 10px">
 					<div style="display: flex; justify-content: left;">
-						<img style="height: 32px; height: 32px; border-radius: 50%;" src="{{avatar_url}}">			
+						<img style="height: 32px; height: 32px; border-radius: 50%;" src="${user.getAvatarURL()}">			
 						<div style="margin-left: 10px; margin-top: 5px">
 							<span class="${this.UserTagConstants.defaultColor}" aria-expanded="false" role="button" tabindex="0">
-								{{username}}
+								${user.username}
 							</span>
 						</div>
 					</div>
@@ -412,16 +401,7 @@ module.exports = class OCS {
 				</div>
 			</div>`;
 
-		const currentObject = this.containedObjects[objectIterator];
-
-		const user = this.getUser(currentObject.id);
-
-		if (!user) {
-			return;
-		}
-
-		const elem = ZeresPluginLibrary.DOMTools.createElement(ZeresPluginLibrary.Utilities.formatString(popoutHTML,
-			{ username: user.username, avatar_url: user.getAvatarURL() }));
+		const elem = BdApi.DOM.parseHTML(popoutHTML);
 
 
 		currentObject.reactions.forEach(reaction => {
@@ -436,11 +416,11 @@ module.exports = class OCS {
 
 			const reactionsInput = this.createInput(this.labels.input_reactions, 'input_reactions', (e) => {
 
-				const value = document.getElementById('input_reactions').value.trim(); // HERE
+				const value = document.getElementById('input_reactions').value.trim();
 				const table = document.getElementById('emojisToAdd');
 				table.innerHTML = '';
 
-				currentObjectReactions.forEach(reaction => { // HERE
+				currentObjectReactions.forEach(reaction => {
 					const textToDisplay = this.getReactionTextToDisplay(reaction);
 					if (textToDisplay != '') {
 						const reactionElement = BdApi.DOM.parseHTML(`<div>${this.getReactionTextToDisplay(reaction)}</div>`);
@@ -464,7 +444,6 @@ module.exports = class OCS {
 				if (value.length > 1) {
 					for (const emoji of this.allEmojis) {
 						if (emoji.name.toLowerCase().search(value.toLowerCase()) != -1) {
-
 
 							const emojiQueryResult = BdApi.DOM.parseHTML(
 								`<div style="height: 50px; margin-top: 10px; margin-bottom: 10px; display: flex; align-items: center;">						
@@ -528,37 +507,41 @@ module.exports = class OCS {
 
 			const containingMethodText = BdApi.DOM.parseHTML(`<span style="color:#dddddd">${this.labels.containing_method_text}: </span>`);
 
-			const radioGroup = [
-				{
-					name: this.labels.containing_method_reactions,
-					value: this.containingMethod.reactions,
-					desc: '',
-					color: '#DDDDDD'
-				},
-				{
-					name: this.labels.containing_method_message,
-					value: this.containingMethod.message,
-					desc: '',
-					color: '#DDDDDD'
-				}
-			];
-			var containingMethod = currentObject.method;
-			const containingMethodRadioGroup = new ZeresPluginLibrary.Settings.RadioGroup('', '', currentObject.method, radioGroup, (method) => {
-				containingMethod = method;
-			}).getElement();
+			let currentContainingMethod = currentObject.method;
+			const radioGroupOptions = {
+				name: '',
+				value: currentContainingMethod,
+				options: [
+					{
+						name: this.labels.containing_method_reactions,
+						value: this.containingMethod.reactions,
+						desc: '',
+						color: '#DDDDDD'
+					},
+					{
+						name: this.labels.containing_method_message,
+						value: this.containingMethod.message,
+						desc: '',
+						color: '#DDDDDD'
+					}
+				],
+				onChange: (newMethod) => currentContainingMethod = newMethod
+			};
 
-			elements.push(containingMethodText);
+			const containingMethodRadioGroup = BdApi.React.createElement(BdApi.Components.RadioInput, radioGroupOptions);
+
+			elements.push(this.wrapElement(containingMethodText));
+
 			elements.push(containingMethodRadioGroup);
 
+			elements.push(this.wrapElement(emojis));
 
-			elements.push(emojis);
-
-			elements.push(reactionsInput);
+			elements.push(this.wrapElement(reactionsInput));
 
 
-			elements.push(emojisQueryList);
+			elements.push(this.wrapElement(emojisQueryList));
 
-			BdApi.UI.showConfirmationModal(this.labels.add_object_button, ZeresPluginLibrary.ReactTools.createWrappedElement(elements), {
+			BdApi.UI.showConfirmationModal(this.labels.add_object_button, elements, {
 				confirmText: this.labels.delete_object,
 				cancelText: this.labels.save_settings,
 				onConfirm: e => { // delete object
@@ -590,7 +573,7 @@ module.exports = class OCS {
 
 					}
 
-					currentObject.method = containingMethod;
+					currentObject.method = currentContainingMethod;
 					this.saveSettings();
 				}
 
@@ -613,13 +596,13 @@ module.exports = class OCS {
 		if (reaction.type == this.emojiType.unicode) {
 			const emoji = this.EmojiUtilitiesWebpack.getByName(reaction.name);
 			if (emoji) {
-				textToDisplay = `<img aria-label="${emoji.surrogates}" src="${this.getEmojiUrl(emoji.surrogates)}" alt="${emoji.surrogates}" draggable="false" class="emoji jumboable" data-type="emoji"></img>`;
+				textToDisplay = `<img aria-label="${emoji.surrogates}" src="${this.getEmojiUrlFromSurrogate(emoji.surrogates)}" alt="${emoji.surrogates}" draggable="false" class="emoji jumboable" data-type="emoji"></img>`;
 			}
 		}
 		else {
 			const customEmoji = this.getCustomEmojiById(reaction.id);
 			if (customEmoji) {
-				textToDisplay = `<img aria-label=":${customEmoji.name}:" src=${customEmoji.url} alt=":${customEmoji.name}:" draggable="false" class="emoji jumboable" data-type="emoji" data-id="${customEmoji.id}"></img>`;
+				textToDisplay = `<img aria-label=":${customEmoji.name}:" src=${this.getCustomEmojiUrl(customEmoji.id)} alt=":${customEmoji.name}:" draggable="false" class="emoji jumboable" data-type="emoji" data-id="${customEmoji.id}"></img>`;
 			}
 		}
 		return textToDisplay;
@@ -629,20 +612,18 @@ module.exports = class OCS {
 		const popoutHTML =
 			`<div>
 			<div style="margin-top: 10px; margin-bottom: 10px; display: flex; justify-content: left;">
-				<img style="height: 32px; height: 32px; border-radius: 50%;" src="{{avatar_url}}">			
+				<img style="height: 32px; height: 32px; border-radius: 50%;" src="${user.getAvatarURL()}">			
 				<span style="margin-left: 10px; margin-top: 5px">
 					<span class="${this.UserTagConstants.defaultColor}" aria-expanded="false" role="button" tabindex="0">
-						{{username}}
+						${user.username}
 					</span>
 					</span>
 				<div id="confirmAdd" style="margin-right: 0px; margin-left: auto;"></div>
 			</div>		
 		</div>`;
 
+		const elem = BdApi.DOM.parseHTML(popoutHTML);
 
-
-		const elem = ZeresPluginLibrary.DOMTools.createElement(ZeresPluginLibrary.Utilities.formatString(popoutHTML,
-			{ username: user.username, avatar_url: user.getAvatarURL() }))
 		return elem;
 
 	}
@@ -660,7 +641,7 @@ module.exports = class OCS {
 				this.containedObjects.push({
 					'name': user.username,
 					'id': user.id,
-					'reactions': [], // HERE ?
+					'reactions': [],
 					'method': this.containingMethod.reactions
 				});
 				this.saveSettings();
@@ -686,7 +667,7 @@ module.exports = class OCS {
 	}
 
 	setLabelsByLanguage() {
-		switch (ZeresPluginLibrary.WebpackModules.getByProps('getLocale')?.getLocale() || document.querySelector("html[lang]").getAttribute("lang")) {
+		switch (BdApi.Webpack.getByKeys('getLocale')?.getLocale() || document.querySelector("html[lang]").getAttribute("lang")) {
 			case 'ru':
 				return {
 					add_button: 'Добавить объект для сдерживания',
@@ -723,37 +704,6 @@ module.exports = class OCS {
 				}
 		}
 
-	}
-
-	checkLibraries(libraries) {
-		const div = BdApi.React.createElement('div', {});
-		div.props.children = [];
-		const createMissingLibraryText = (libraryName, libraryUrl) => {
-			return BdApi.React.createElement('div', {}, BdApi.React.createElement('a', {
-				href: libraryUrl,
-				target: '_blank'
-			}, libraryName),
-				BdApi.React.createElement('span', { style: { color: 'white' } }, ' was missing'));
-		}
-		var hasAllLibs = true;
-		for (const library of libraries) {
-			if (!global[library.name]) {
-				hasAllLibs = false;
-				div.props.children.push(createMissingLibraryText(library.name, library.url));
-				fetch(library.url).then(function (response) {
-					return response.text();
-				}).then(function (file) {
-					require('fs').writeFileSync(require('path').join(BdApi.Plugins.folder, library.filename), file);
-				});
-			}
-		}
-		if (!hasAllLibs) {
-			div.props.children.push(BdApi.React.createElement('span', { style: { color: 'white' } }, 'Please, reload plugin'))
-			BdApi.alert('Missing libraries were downloaded', div);
-			BdApi.Plugins.disable(this.name);
-			return false;
-		}
-		return true;
 	}
 
 	isEqual(a, b) {
