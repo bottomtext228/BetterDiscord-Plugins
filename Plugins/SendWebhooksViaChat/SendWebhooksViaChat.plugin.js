@@ -1,6 +1,6 @@
 /**
  * @name SendWebhooksViaChat
- * @version 2.2.0
+ * @version 2.2.1
  * @description Sends webhook messages via Discord chat.
  * @author bottom_text | Z-Team
  * @source https://github.com/bottomtext228/BetterDiscord-Plugins/tree/main/Plugins/SendWebhooksViaChat
@@ -17,7 +17,7 @@ module.exports = class SendWebhooksViaChat {
 
 
     start() {
-
+        console.log(`${this.name}: started!`);
 
         this.findWebpacks();
 
@@ -170,14 +170,13 @@ module.exports = class SendWebhooksViaChat {
 
         this.unpatches = [];
         this.unpatches.push(BdApi.ContextMenu.patch('message', (ret, props) => this.onMessageContextMenu(props, ret)));
+
     }
     // right click on message
     onMessageContextMenu(props, ret) {
         if (props.message && props.channel && props.message.webhookId) {
             const webhook = this.settings.webhooks.find(webhook => webhook.url.match(/webhooks\/(\d+)/)?.[1] == props.message.webhookId);
             if (webhook) {
-
-
                 const editChild = {
                     label: 'Edit Webhook message',
                     icon: _ => BdApi.React.createElement('svg',
@@ -237,8 +236,10 @@ module.exports = class SendWebhooksViaChat {
                     }
 
                 }
-
-                ret.props.children.splice(ret.props.children.length - 1, 0, BdApi.ContextMenu.buildMenuChildren([{
+                
+                let messageActions = ret.props.children.props.children;
+                // add new actions
+                messageActions.splice(messageActions.length - 1, 0, BdApi.ContextMenu.buildMenuChildren([{
                     type: "group",
                     items: [editChild, deleteChild]
                 }]))
@@ -293,7 +294,7 @@ module.exports = class SendWebhooksViaChat {
     }
 
     prepareMessageToSend(string) {
-        // webhooks can't send unicode emoji, so we replace them with text (🐖 -> :pig2:)
+        // webhooks can't send unicode emoji, so we replace them with text (рџђ– -> :pig2:)
         string = this.replaceEmojies(string);
         // ... more?
         return string;
@@ -532,7 +533,7 @@ module.exports = class SendWebhooksViaChat {
     findWebpacks() {
         this.messageUtils = BdApi.Webpack.getByKeys('sendMessage', 'editMessage');
         this.buttonConstansts = BdApi.Webpack.getByKeys('lookBlank');
-        this.inputConstants = BdApi.Webpack.getByKeys('input', 'icon', 'close', 'pointer');
+        this.inputConstants = BdApi.Webpack.getByKeys('input', 'inner', 'close');
         this.emojiUtils = BdApi.Webpack.getByKeys('getByName');
         this.avatarUtils = BdApi.Webpack.getByKeys('getDefaultAvatarURL');
         this.contextMenuClassess = BdApi.Webpack.getByKeys('icon', 'separator', 'submenu');
@@ -543,6 +544,7 @@ module.exports = class SendWebhooksViaChat {
     stop() {
         this.unpatches.forEach(unpatch => unpatch());
         BdApi.Patcher.unpatchAll(this.name);
+        console.log(`${this.name}: stopped!`);
     }
 
 }
