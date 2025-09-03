@@ -1,6 +1,6 @@
 /**
  * @name PigEmoji
- * @version 2.1.8
+ * @version 2.1.9
  * @author bottom_text | Z-Team 
  * @description Replaces emoji button with any emoji.
  * @source https://github.com/bottomtext228/BetterDiscord-Plugins/tree/main/Plugins/PigEmoji
@@ -18,7 +18,13 @@ module.exports = class PigEmoji {
         console.log(`${this.name}: started!`);
 
         this.findWebpacks();
+        
+        this.isHovered = false;
 
+        this.ANIMATION_TYPE = {
+            ENTER: 0,
+            LEAVE: 1
+        };
 
         /* TODO:
             * future: make ability to set custom svg images
@@ -30,16 +36,19 @@ module.exports = class PigEmoji {
                 emoji: 'pig2'
             };
             BdApi.saveData(this.name, 'settings', this.settings);
-        };
+        };  
 
         // subscribe to expression picker state
         this.unsubscribeFn = this.expressionPickerWebpack.Iu.subscribe((current, previous) => {
-            const button = document.getElementById('expression-picker-button').firstChild;
-            if (current.activeView == 'emoji') { // emoji view opened
-                this.animateButton(button, 'mouseenter');
+            const container = document.getElementById('expression-picker-button');
+            if (!container) return;
+          
+            const button = container.firstChild;
+            if (!this.isHovered && current.activeView == 'emoji') { // emoji view opened
+                this.animateButton(button, this.ANIMATION_TYPE.ENTER);
             }
-            if (current.activeView != 'emoji' && previous.activeView == 'emoji') { // emoji view closed
-                this.animateButton(button, 'mouseleave');
+            if (current.activeView != 'emoji' && previous.activeView == 'emoji') { // emoji view closeds
+                this.animateButton(button, this.ANIMATION_TYPE.LEAVE);
             }
         });
 
@@ -149,15 +158,16 @@ module.exports = class PigEmoji {
     onEmojiClick(e) {
         // recreating the original behaviour
         const activeView = this.getExpressionPickerMenuState().activeView; // current menu tab
+       
         if (!activeView || activeView != 'emoji') {
 
             const button = document.querySelector(`.${this.classConstants.inner}`);
             if (!button) return;
-            
+
 
             const buttonReactInstance = BdApi.ReactUtils.getInternalInstance(button);
             if (!buttonReactInstance) return;
-            
+
             const buttonsContainter = this.getButtonsReactInstance(buttonReactInstance);
 
             this.openExpressionPickerMenu('emoji', buttonsContainter.props.type);
@@ -168,12 +178,20 @@ module.exports = class PigEmoji {
     }
 
     onEmojiHover(e) {
-        const button = e.target.firstChild;
+        const button = e.target.firstChild || e.target; // it must be like that
         if (!button) return;
-        this.animateButton(button, e.type);
+
+        const activeView = this.getExpressionPickerMenuState().activeView;
+        if (activeView != 'emoji') {
+            this.animateButton(button, e.type == 'mouseenter' ? this.ANIMATION_TYPE.ENTER : this.ANIMATION_TYPE.LEAVE);
+        }
     }
 
     animateButton(button, type) {
+       if (this.isHovered == (type == this.ANIMATION_TYPE.ENTER)) return; // hack
+
+       this.isHovered = type == this.ANIMATION_TYPE.ENTER;
+        
         const animate = ({ timing, draw, duration }) => {
             let start;
             requestAnimationFrame(function animate(time) {
@@ -199,7 +217,7 @@ module.exports = class PigEmoji {
                 let grayscale;
                 let scale;
                 let endScale;
-                if (type == 'mouseenter') {
+                if (type == this.ANIMATION_TYPE.ENTER) {
                     grayscale = 1 - progress; // it's just works
                     scale = 0.14 * progress + 1;
                     endScale = 1.14;
@@ -227,7 +245,7 @@ module.exports = class PigEmoji {
 
         return BdApi.React.createElement('div', {
             class: `expression-picker-chat-input-button ${this.classConstants.buttonContainer}`,
-            key: 'emoji',
+            key: 'emoji'
         }, BdApi.React.createElement('button', {
             id: "expression-picker-button",
             tabindex: "0",
