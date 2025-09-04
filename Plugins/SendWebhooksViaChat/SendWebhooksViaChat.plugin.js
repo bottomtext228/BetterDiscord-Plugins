@@ -1,6 +1,6 @@
 /**
  * @name SendWebhooksViaChat
- * @version 2.2.1
+ * @version 2.2.2
  * @description Sends webhook messages via Discord chat.
  * @author bottom_text | Z-Team
  * @source https://github.com/bottomtext228/BetterDiscord-Plugins/tree/main/Plugins/SendWebhooksViaChat
@@ -14,7 +14,6 @@ module.exports = class SendWebhooksViaChat {
             this[key] = meta[key];
         }
     }
-
 
     start() {
         console.log(`${this.name}: started!`);
@@ -55,50 +54,17 @@ module.exports = class SendWebhooksViaChat {
             this.name,
             this.messageUtils,
             'sendMessage',
-            (_, args, original) => {
+            async (_, args, original) => {
                 const message = args[1].content;
                 const parsingResult = this.parseMessageForWebhook(message);
                 if (parsingResult) {
                     const { webhook, messageToSend } = parsingResult;
 
-                    this.makeWebhookRequest(webhook.url, {
-                        body: JSON.stringify({
-                            content: messageToSend,
-                            username: webhook.username ? webhook.username : undefined,
-                            avatar_url: webhook.avatar_url ? webhook.avatar_url : undefined
-                        }),
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        method: 'POST'
-                    }, 'sended');
-
-                    return; // prevent sending the message
-                }
-
-                original(...args);
-
-            }
-        );
-
-        // patch uploading files when sending message
-        BdApi.Patcher.instead(
-            this.name,
-            BdApi.Webpack.getByKeys('uploadFiles'),
-            'uploadFiles',
-            async (_, args, original) => {
-
-                const message = args[0].parsedMessage.content;
-                const parsingResult = this.parseMessageForWebhook(message);
-
-                if (parsingResult) {
-
-                    const { webhook, messageToSend } = parsingResult;
 
                     // this hand-maded multipart/form-data request just works, ok? 
                     const formBoundary = this.generateFormBoundary();
 
-                    const uploads = args[0].uploads;
+                    const uploads = args[3].attachmentsToUpload;
 
                     const encoder = new TextEncoder();
 
@@ -138,11 +104,9 @@ module.exports = class SendWebhooksViaChat {
                         body: data
                     }, 'sended');
 
-                } else {
-
-                    return original(...args);
+                    return; // prevent sending the message
                 }
-
+                original(...args);
             }
         );
 
@@ -236,7 +200,7 @@ module.exports = class SendWebhooksViaChat {
                     }
 
                 }
-                
+
                 let messageActions = ret.props.children.props.children;
                 // add new actions
                 messageActions.splice(messageActions.length - 1, 0, BdApi.ContextMenu.buildMenuChildren([{
