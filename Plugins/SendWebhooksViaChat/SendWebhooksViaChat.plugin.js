@@ -1,6 +1,6 @@
 /**
  * @name SendWebhooksViaChat
- * @version 2.2.2
+ * @version 2.2.3
  * @description Sends webhook messages via Discord chat.
  * @author bottom_text | Z-Team
  * @source https://github.com/bottomtext228/BetterDiscord-Plugins/tree/main/Plugins/SendWebhooksViaChat
@@ -374,7 +374,7 @@ module.exports = class SendWebhooksViaChat {
 
 
 
-            BdApi.showConfirmationModal('Webhook settings', this.wrapElement(settingsHtml), {
+            BdApi.UI.showConfirmationModal('Webhook settings', this.wrapElement(settingsHtml), {
                 confirmText: 'Save',
                 cancelText: 'Delete',
                 onConfirm: async () => {
@@ -442,21 +442,21 @@ module.exports = class SendWebhooksViaChat {
     }
 
     saveSettings() {
-        BdApi.saveData(this.name, 'settings', this.settings);
+        BdApi.Data.save(this.name, 'settings', this.settings);
     }
 
     loadSettings() {
         // note: settings cached by BdApi, so if you want to manipulate settings
         // by editing the config in manual you should restart discord
         try {
-            this.settings = BdApi.loadData(this.name, 'settings');
+            this.settings = BdApi.Data.load(this.name, 'settings');
             if (!this.settings || !Array.isArray(this.settings.webhooks)) { // load defaults
                 this.settings = { webhooks: [] };
                 this.saveSettings();
             };
         } catch (error) {
             require('fs').writeFileSync(require('path').join(BdApi.Plugins.folder, `${this.name}.config.json`),
-                JSON.stringify({ settings: { webhooks: [] } })); // BdApi.save/loadData can't work with empty files
+                JSON.stringify({ settings: { webhooks: [] } })); // BdApi.Data./save/load can't work with empty files
             this.settings = { webhooks: [] };
             this.saveSettings();
         }
