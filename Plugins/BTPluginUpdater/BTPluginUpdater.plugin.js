@@ -1,6 +1,6 @@
 /**
  * @name BTPluginUpdater
- * @version 1.0.1
+ * @version 1.0.2
  * @author bottom_text
  * @description Updates bottom_text's plugins.
  * @updateUrl https://raw.githubusercontent.com/bottomtext228/BetterDiscord-Plugins/main/Plugins/BTPluginUpdater/BTPluginUpdater.plugin.js
@@ -23,7 +23,7 @@ module.exports = class BTPluginUpdater {
                 if (plugin) {
                     BdApi.Net.fetch(plugin.updateUrl).then(e => e.text()).then(pluginContent => { // fetch plugin from the github 
                         const newVersion = pluginContent.match(/@version (.+)/)?.[1];
-                        if (newVersion > plugin.version) { // compare versions
+                        if (this.compareVersions(newVersion, plugin.version) == 1) { // compare versions
                             const closeNotice = BdApi.UI.showNotice(`${plugin.name} has an update.`, { // show notice with an update button
                                 buttons: [{
                                     label: 'Update',
@@ -51,6 +51,21 @@ module.exports = class BTPluginUpdater {
             BdApi.UI.showToast(`${this.name}: can't fetch plugins list! Try to update plugins manually.`, { type: 'error', timeout: 5e3 });
         })
     }
+
+    compareVersions(a, b) {
+        const pa = a.split('.').map(Number);
+        const pb = b.split('.').map(Number);
+
+        const len = Math.max(pa.length, pb.length);
+        for (let i = 0; i < len; i++) {
+            const na = pa[i] || 0;
+            const nb = pb[i] || 0;
+            if (na > nb) return 1;
+            if (na < nb) return -1;
+        }
+        return 0;
+    }
+
     stop() {
 
     }
