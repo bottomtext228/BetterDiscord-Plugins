@@ -1,6 +1,6 @@
 /**
  * @name InputSwitcher
- * @version 1.3.4
+ * @version 1.3.5
  * @author bottom_text | Z-Team 
  * @description Switches the keyboard layout(RU & EN)/case of the message.
  * @source https://github.com/bottomtext228/BetterDiscord-Plugins/tree/main/Plugins/InputSwitcher
@@ -56,10 +56,10 @@ module.exports = (_ => {
 
             onStart() {
 
-                this.UserStore = BdApi.findModuleByProps('getUser', 'getCurrentUser');
-                this.MessageActions = BdApi.findModuleByProps('sendMessage', 'editMessage');
-                this.UserTagConstants = { ...BdApi.findModuleByProps('userTagUsernameNoNickname'), ...BdApi.findModuleByProps('defaultColor') };
-                this.SlateConstants = BdApi.findModuleByProps('slateTextArea', 'slateContainer');
+                this.UserStore = BdApi.Webpack.getByKeys('getUser', 'getCurrentUser');
+                this.MessageActions = BdApi.Webpack.getByKeys('sendMessage', 'editMessage');
+                this.UserTagConstants = { ...BdApi.Webpack.getByKeys('userTagUsernameNoNickname'), ...BdApi.Webpack.getByKeys('defaultColor') };
+                this.SlateConstants = BdApi.Webpack.getByKeys('slateTextArea', 'slateContainer');
 
 
                 // load settings
@@ -263,7 +263,7 @@ module.exports = (_ => {
                 }); // this somehow gives cross-origin error sometimes
                 */
 
-                BdApi.showConfirmationModal(this.name, BDFDB.ReactUtils.elementToReact(popout), { cancelText: '' });
+                BdApi.UI.showConfirmationModal(this.name, BDFDB.ReactUtils.elementToReact(popout), { cancelText: '' });
             }
 
             swapCase(message) {
