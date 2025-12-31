@@ -1,6 +1,6 @@
 /**
  * @name FreeStickers
- * @version 2.1.2
+ * @version 2.1.3
  * @author bottom_text | Z-Team 
  * @description Makes available to send stickers (not animated) and any emojis everywhere like with nitro.
  * @source https://github.com/bottomtext228/BetterDiscord-Plugins/tree/main/Plugins/FreeStickers
@@ -60,26 +60,23 @@ module.exports = class FreeStickers {
             return false;
         });
 
-
-        // Patch stickers
-
         // hook to allow send stickers
         BdApi.Patcher.instead(this.name, this.stickerSendabilityWebpack, 'kl', (_, [sticker, user, channel, hook], original) => {
             // `hook` means that we call it by ourselves
             return hook ? original(sticker, user, channel) : true;
         });
-
+      
         // change message object and replace emoji/sticker objects with its URL
         BdApi.Patcher.instead(this.name, this.enqueWebpack, 'enqueue', (_, args, original) => {
             const message = args[0].message;
 
-            /* stickers */
+            // stickers
             if (message.sticker_ids && !this.isStickerAvailable(message.sticker_ids[0], message.channelId)) {
                 message.content = `https://media.discordapp.net/stickers/${message.sticker_ids[0]}.webp?size=160`; // insert sticker url in the message
                 delete message.sticker_ids;
             }
 
-            /* emojies */
+            // emojis
             const regExp = /<a?:\w+:(\d+)>/g; // guild emoji 
             let match;
             while (match = regExp.exec(message.content)) {
@@ -93,7 +90,7 @@ module.exports = class FreeStickers {
             }
 
             original(...args);
-        });
+        }); 
 
     }
 
@@ -115,12 +112,12 @@ module.exports = class FreeStickers {
             channel: this.channelStoreWebpack.getChannel(channelId),
             intention: 'CHAT',
             hook: true
-        }); 
+        });
     }
 
     findWebpacks() {
         this.userStoreWebpack = BdApi.Webpack.getStore('UserStore');
-        this.enqueWebpack = BdApi.Webpack.getByKeys('enqueue', 'draining');
+        this.enqueWebpack = BdApi.Webpack.getByKeys('enqueue', 'maxSize');
         this.emojiWebpack = BdApi.Webpack.getByKeys('getEmojiUnavailableReason');
         this.channelStoreWebpack = BdApi.Webpack.getStore('ChannelStore');
         this.customEmojiUtilitiesWebpack = BdApi.Webpack.getByKeys('getCustomEmojiById');
