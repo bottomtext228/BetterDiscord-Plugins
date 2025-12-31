@@ -1,6 +1,6 @@
 /**
  * @name PigEmoji
- * @version 2.1.9
+ * @version 2.1.10
  * @author bottom_text | Z-Team 
  * @description Replaces emoji button with any emoji.
  * @source https://github.com/bottomtext228/BetterDiscord-Plugins/tree/main/Plugins/PigEmoji
@@ -30,12 +30,12 @@ module.exports = class PigEmoji {
             * future: make ability to set custom svg images
         */
 
-        this.settings = BdApi.loadData(this.name, 'settings');
+        this.settings = BdApi.Data.load(this.name, 'settings');
         if (!this.settings) { // load defaults
             this.settings = {
                 emoji: 'pig2'
             };
-            BdApi.saveData(this.name, 'settings', this.settings);
+            BdApi.Data.save(this.name, 'settings', this.settings);
         };  
 
         // subscribe to expression picker state
@@ -102,7 +102,7 @@ module.exports = class PigEmoji {
             const value = document.getElementById('input_id').value.trim();
             if (this.getEmojiByName(value)) { // if emoji exists
                 this.settings.emoji = value;
-                BdApi.saveData(this.name, 'settings', this.settings);
+                BdApi.Data.save(this.name, 'settings', this.settings);
                 this.patchButton();
                 document.getElementById('padding').innerHTML = '&nbsp';
             } else {
@@ -140,7 +140,7 @@ module.exports = class PigEmoji {
 
     openExpressionPickerMenu(tab, props) {
         // if tab or props undefined/null/etc menu will be closed
-        this.expressionPickerWebpack.RO(tab, props);
+        this.expressionPickerWebpack.RO(tab, props, this.lastChannelWebpack.getChannelId());
     }
 
     getExpressionPickerMenuState() {
@@ -158,7 +158,6 @@ module.exports = class PigEmoji {
     onEmojiClick(e) {
         // recreating the original behaviour
         const activeView = this.getExpressionPickerMenuState().activeView; // current menu tab
-       
         if (!activeView || activeView != 'emoji') {
 
             const button = document.querySelector(`.${this.classConstants.inner}`);
@@ -169,7 +168,6 @@ module.exports = class PigEmoji {
             if (!buttonReactInstance) return;
 
             const buttonsContainter = this.getButtonsReactInstance(buttonReactInstance);
-
             this.openExpressionPickerMenu('emoji', buttonsContainter.props.type);
         } else {
             this.openExpressionPickerMenu('', null); // close menu if already opened
@@ -332,6 +330,7 @@ module.exports = class PigEmoji {
         this.getURLWebpack = BdApi.Webpack.getByKeys('getURL');
         this.emojiUtilities = BdApi.Webpack.getByKeys('getByName');
         this.expressionPickerWebpack = BdApi.Webpack.getByKeys('RO', 'Iu');
+        this.lastChannelWebpack = BdApi.Webpack.getByKeys('getLastSelectedChannelId');
 
         this.classConstants = BdApi.Webpack.getByKeys('profileBioInput'); // css classes
         this.buttonConstants = BdApi.Webpack.getByKeys('lookBlank');
