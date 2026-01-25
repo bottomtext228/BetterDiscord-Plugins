@@ -1,8 +1,8 @@
 /**
  * @name PigEmoji
- * @version 2.2.0
+ * @version 2.2.1
  * @author bottom_text | Z-Team 
- * @description Replaces emoji button with any emoji or image.
+ * @description Replaces emoji button with any emoji.
  * @source https://github.com/bottomtext228/BetterDiscord-Plugins/tree/main/Plugins/PigEmoji
  * @updateUrl https://raw.githubusercontent.com/bottomtext228/BetterDiscord-Plugins/main/Plugins/PigEmoji/PigEmoji.plugin.js
 */
@@ -186,7 +186,7 @@ module.exports = class PigEmoji {
         };
 
         // subscribe to expression picker state
-        this.unsubscribeFn = this.expressionPickerWebpack.Iu.subscribe((current, previous) => {
+        this.unsubscribeFn = this.expressionPickerStateManager.subscribe((current, previous) => {
             const container = document.getElementById('expression-picker-button');
             if (!container) return;
 
@@ -198,23 +198,11 @@ module.exports = class PigEmoji {
                 this.animateButton(button, this.ANIMATION_TYPE.LEAVE);
             }
         });
-
         this.patchButton();
 
     }
 
     async patchButton() {
-        // wait until the chat input will be created 
-        const button = await this.getEmojiButton();
-
-        const buttonReactInstance = BdApi.ReactUtils.getInternalInstance(button);
-
-        if (!buttonReactInstance) {
-            return;
-        }
-
-        const buttonsContainter = this.getButtonsReactInstance(buttonReactInstance);
-
         let url = "";
         if (this.settings.emojiType == this.EMOJI_TYPE.UNICODE) {
             const emoji = this.getEmojiByName(this.settings.emoji);
@@ -227,18 +215,16 @@ module.exports = class PigEmoji {
             url = URL.createObjectURL(blob);
         }
 
-
         const emojiElement = this.createEmojiButton(url);
 
         // patch React function to inject our button
-        BdApi.Patcher.after(this.name, buttonsContainter.type, 'type', (_, [props], ret) => {
-            if (!ret || !this.shouldDrawEmojiButton(props)) {
-                return;
+        BdApi.Patcher.after(this.name, this.chatButtonsWebpackWithKey[0], this.chatButtonsWebpackWithKey[1], (_, args, ret) => {
+            // thanks to Strencher (InvisibleTyping) for this line of code
+            if (args.length == 2 && !args[0].disabled && args[0].type.analyticsName == "normal" && ret?.props.children && Array.isArray(ret.props.children)) {
+                // find the emoji button and replace it
+                ret.props.children[ret.props.children.indexOf(ret.props.children.find(e => e.key == 'emoji'))] = emojiElement;
+                return ret;
             }
-
-            // find the emoji button and replace it
-            ret.props.children[ret.props.children.indexOf(ret.props.children.find(e => e.key == 'emoji'))] = emojiElement;
-            return ret;
         })
         // forcibly rerender elements to see changes instantly
         this.rerenderMessageStore();
@@ -259,28 +245,8 @@ module.exports = class PigEmoji {
         this.patchButton();
     }
 
-    wrapElement(element) {
-        const wrap = (elements) => {
-            const domWrapper = BdApi.DOM.parseHTML(`<div class="dom-wrapper"></div>`);
-            for (let e = 0; e < elements.length; e++) domWrapper.appendChild(elements[e]);
-            return domWrapper;
-        }
-        if (Array.isArray(element)) element = wrap(element);
-        return BdApi.React.createElement(BdApi.ReactUtils.wrapElement(element));
-    }
-
-    shouldDrawEmojiButton(props) {
-        if (props.channel.type == 1 || props.channel.type == 3) { // DM | Group chat
-            return true;
-        }
-        return this.permissionsWebpack.BT({
-            context: props.channel,
-            user: this.getCurrentUser(),
-            permission: 2048n // send message
-        });
-    }
     // find buttons in the children list
-    getButtonsReactInstance(vnode) {
+    getButtonsInstanceFromChildren(vnode) {
         for (let curr = vnode, max = 100; curr !== null && max--; curr = curr.return) {
             const tree = curr?.pendingProps?.children;
             let buttons;
@@ -290,13 +256,28 @@ module.exports = class PigEmoji {
         }
     }
 
+    getButtonsInstance() {
+        const button = document.querySelector(`.${this.classConstants.inner}`);
+        if (!button) return null;
+
+        const buttonReactInstance = BdApi.ReactUtils.getInternalInstance(button);
+        if (!buttonReactInstance) return null;
+
+        return this.getButtonsInstanceFromChildren(buttonReactInstance);
+    }
+
     openExpressionPickerMenu(tab, props) {
         // if tab or props undefined/null/etc menu will be closed
-        this.expressionPickerWebpack.RO(tab, props, this.lastChannelWebpack.getChannelId());
+        this.expressionPickerStateManager.setState({
+            activeView: tab,
+            activeViewType: props,
+            activeChannelId: this.lastChannelWebpack.getChannelId(), // activeChannelId from getState() itself is null so use this
+            lastActiveView: this.getExpressionPickerMenuState().activeView
+        })
     }
 
     getExpressionPickerMenuState() {
-        return this.expressionPickerWebpack.Iu.getState();
+        return this.expressionPickerStateManager.getState();
     }
 
     getCurrentUser() {
@@ -312,19 +293,13 @@ module.exports = class PigEmoji {
         const activeView = this.getExpressionPickerMenuState().activeView; // current menu tab
         if (!activeView || activeView != 'emoji') {
 
-            const button = document.querySelector(`.${this.classConstants.inner}`);
-            if (!button) return;
+            const buttonsInstance = this.getButtonsInstance();
+            if (!buttonsInstance) return;
 
-
-            const buttonReactInstance = BdApi.ReactUtils.getInternalInstance(button);
-            if (!buttonReactInstance) return;
-
-            const buttonsContainter = this.getButtonsReactInstance(buttonReactInstance);
-            this.openExpressionPickerMenu('emoji', buttonsContainter.props.type);
+            this.openExpressionPickerMenu('emoji', buttonsInstance.props.type);
         } else {
             this.openExpressionPickerMenu('', null); // close menu if already opened
         }
-
     }
 
     onEmojiHover(e) {
@@ -388,15 +363,13 @@ module.exports = class PigEmoji {
     }
 
     createEmojiButton(emojiUrl) {
-        this.emojiButtonClasses = document.getElementsByClassName(this.classConstants.emojiButton)[0]?.className;
-
         return BdApi.React.createElement('div', {
             class: `expression-picker-chat-input-button ${this.classConstants.buttonContainer}`,
-            key: 'emoji'
+            key: 'emoji'      
         }, BdApi.React.createElement('button', {
             id: "expression-picker-button",
             tabindex: "0",
-            class: `${this.classConstants.emojiButton} ${this.buttonConstants.button} ${this.buttonConstants.lookBlank} ${this.buttonConstants.colorBrand} ${this.buttonConstants.grow}`, //this.emojiButtonClasses, //"emojiButtonNormal-35P0_i emojiButton-3FRTuj emojiButton-1fMsf3 button-3BaQ4X button-f2h6uQ lookBlank-21BCro colorBrand-I6CyqQ grow-2sR_-F",
+            class: `${this.classConstants.emojiButton} ${this.buttonConstants.button} ${this.buttonConstants.lookBlank} ${this.buttonConstants.colorBrand} ${this.buttonConstants.grow}`,
             onClick: (e) => this.onEmojiClick(e),
             onMouseEnter: (e) => this.onEmojiHover(e),
             onMouseLeave: (e) => this.onEmojiHover(e)
@@ -408,35 +381,11 @@ module.exports = class PigEmoji {
                 width: this.settings.width,
                 height: this.settings.height
             })
-
         ));
-    }
-
-    getEmojiButton() {
-        return new Promise((resolve, reject) => {
-            let button = document.querySelector(`.${this.classConstants.inner}`);
-            if (button) resolve(button);
-            const observer = new MutationObserver((mutationRecords) => {
-                button = document.querySelector(`.${this.classConstants.inner}`);
-                if (button) {
-                    resolve(button);
-                    observer.disconnect();
-                }
-            });
-            observer.observe(document.body, { childList: true, subtree: true });
-        });
     }
 
     getEmojiUrl(emojiSurrogate) { // example: '🐖' -> '/assets/d083412544c302d290775006877f6202.svg'
         return this.getURLWebpack.getURL(emojiSurrogate);
-    }
-
-    createButton(label, callback, id) {
-        const ret = BdApi.DOM.parseHTML(`<button type="button" class="${this.buttonConstants.button} ${this.buttonConstants.lookFilled} ${this.buttonConstants.colorBrand} ${this.buttonConstants.sizeSmall} ${this.buttonConstants.grow}" ${(id ? 'id="' + id + '"' : '')}><div class="contents-3ca1mk">${label}</div></button>`);
-        if (callback) {
-            ret.addEventListener('click', callback);
-        }
-        return ret;
     }
 
     rerenderMessageStore() {
@@ -463,18 +412,20 @@ module.exports = class PigEmoji {
     }
 
     findWebpacks() {
-        this.permissionsWebpack = BdApi.Webpack.getByKeys('uB', 'BT'); // BT = can
         this.userStoreWebpack = BdApi.Webpack.getByKeys('getCurrentUser');
         this.getURLWebpack = BdApi.Webpack.getByKeys('getURL');
         this.emojiUtilities = BdApi.Webpack.getByKeys('getByName');
-        this.expressionPickerWebpack = BdApi.Webpack.getByKeys('RO', 'Iu');
+
+        const expressionPickerWebpack = BdApi.Webpack.getBySource('activeChannelId', 'getState().activeView}))}');
+        this.expressionPickerStateManager = Object.entries(expressionPickerWebpack).find(entry => Object.keys(entry[1]).includes('subscribe'))[1];
         this.lastChannelWebpack = BdApi.Webpack.getByKeys('getLastSelectedChannelId');
+        // thanks to Strencher for this
+        this.chatButtonsWebpackWithKey = [...BdApi.Webpack.getWithKey(BdApi.Webpack.Filters.byStrings("type", "showAllButtons", "paymentsBlocked"))];
 
         this.classConstants = BdApi.Webpack.getByKeys('profileBioInput'); // css classes
         this.buttonConstants = BdApi.Webpack.getByKeys('lookBlank');
         this.inputConstants = BdApi.Webpack.getByKeys('input', 'inner', 'close');
         this.chatContentConstants = BdApi.Webpack.getByKeys('chatContent', 'content', 'cursorPointer');
-
     }
 
     stop() {
