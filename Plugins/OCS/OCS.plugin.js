@@ -1,6 +1,6 @@
 /**
  * @name OCS
- * @version 2.3.2
+ * @version 2.3.3
  * @description Orpheus Containment System.
  * @author bottom_text | Z-Team
  * @source https://github.com/bottomtext228/BetterDiscord-Plugins/tree/main/Plugins/OCS
@@ -44,13 +44,6 @@ module.exports = class OCS {
 		);
 		// хукаем обработчик основных событий, включая сообщения.
 		// before, чтобы не конфликтовало с другими плагинами, хукающими dispatch, так как нам надо только считывать данные 
-
-		BdApi.Patcher.instead(
-			this.name,
-			this.ComponentDispatchWebpack,
-			'dispatch',
-			(_, args, original) => this.onComponentDispatchDispatchEvent(args, original)
-		); // хук для отключения тряски приложения
 
 	}
 
@@ -101,10 +94,7 @@ module.exports = class OCS {
 					});
 
 				}
-
 			}
-
-
 		}
 		if (dispatch.type == 'MESSAGE_DELETE') {
 			/* Если жертва удаляет свои сообщения, мы удаляем свои  */
@@ -159,15 +149,8 @@ module.exports = class OCS {
 		return this.UrlUtilitiesWebpack.getEmojiURL({ id: customEmojiId, size: 34 });
 	}
 
-	onComponentDispatchDispatchEvent(args, callDefault) {
-		const event = args[0];
-		if (event != 'SHAKE_APP') { // убираем тряску экрана
-			callDefault(...args);
-		}
-	}
-
 	sendReaction(channelId, messageId, emoji) {
-		this.ReactionUtilitiesWebpack.rU(channelId, messageId, this.prepareEmojiToSend(emoji), undefined, { burst: false });
+		this.ReactionUtilitiesWebpackWithKey[0][this.ReactionUtilitiesWebpackWithKey[1]](channelId, messageId, this.prepareEmojiToSend(emoji), undefined, { burst: false });
 	}
 
 	prepareEmojiToSend(emoji, toString = false) { // tostring - bool. false - return object for addReaction, true - return string for message
@@ -231,23 +214,22 @@ module.exports = class OCS {
 	}
 
 	findWebpacks() {
+		this.ReactionUtilitiesWebpackWithKey = [...BdApi.Webpack.getWithKey(
+			BdApi.Webpack.Filters.byStrings('MESSAGE_REACTION_ADD', 'void 0!==arguments[3]?arguments[3]:"Message"'))];
 
-		this.ReactionUtilitiesWebpack = BdApi.Webpack.getByKeys('rU', 'wX');
 		this.EmojiUtilitiesWebpack = { ...BdApi.Webpack.getByKeys('getURL'), ...BdApi.Webpack.getByKeys('getByName') };
 		this.GuildUtilitiesWebpack = BdApi.Webpack.getByKeys('getGuildEmoji');
 		this.UrlUtilitiesWebpack = BdApi.Webpack.getByKeys('getEmojiURL');
-		this.ComponentDispatchWebpack = BdApi.Webpack.getModule(m => m.S && m.b && m.S.dispatch).S;
-		this.DispatchWebpack = BdApi.Webpack.getModule(e => e.dispatch && !e.getCurrentUser);
+		this.DispatchWebpack = BdApi.Webpack.getByKeys('actionLogger', 'dispatch', 'subscribe', { searchExports: true });
 		this.GetGuildWebpack = BdApi.Webpack.getByKeys('getGuild', 'getGuildCount');
-		this.GetMembersWebpack = BdApi.Webpack.getByKeys('getMembers');
+		this.GetMembersWebpack = BdApi.Webpack.getByKeys('getMembers', 'getNick');
 		this.GetUserWebpack = BdApi.Webpack.getByKeys('getUser', 'getCurrentUser');
-		this.MessageQueueWebpack = BdApi.Webpack.getByKeys('enqueue', 'draining');
+		this.MessageQueueWebpack = BdApi.Webpack.getByKeys('enqueue', 'maxSize');
 		this.MessageUtilitiesWebpack = BdApi.Webpack.getByKeys('deleteMessage', 'sendMessage', 'editMessage');
 		this.ButtonConstansts = BdApi.Webpack.getByKeys('lookBlank');
 
 		this.UserTagConstants = { ...BdApi.Webpack.getByKeys('userTagUsernameNoNickname'), ...BdApi.Webpack.getByKeys('defaultColor') };
 		this.InputConstants = BdApi.Webpack.getByKeys('input', 'inner', 'close');
-
 	}
 
 	getSettingsPanel() {
@@ -656,14 +638,14 @@ module.exports = class OCS {
 	}
 
 	loadSettings() {
-		this.containedObjects = BdApi.loadData(this.name, 'data');
+		this.containedObjects = BdApi.Data.load(this.name, 'data');
 		if (!this.containedObjects) {
 			this.containedObjects = [];
 		}
 	}
 
 	saveSettings() {
-		BdApi.saveData(this.name, 'data', this.containedObjects);
+		BdApi.Data.save(this.name, 'data', this.containedObjects);
 	}
 
 	setLabelsByLanguage() {
